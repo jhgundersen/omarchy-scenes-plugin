@@ -47,6 +47,7 @@ Panel {
   property string activeSceneId: ""
   property bool busy: false
   property string errorText: ""
+  property var pendingActionCommand: []
   property int selectedSceneIndex: 0
   property bool cursorActive: false
 
@@ -227,18 +228,22 @@ Panel {
 
   function applyScene(id) {
     if (busy || !id) return
-    actionProc.command = [backendPath, "apply", String(id)]
+    queueAction([backendPath, "apply", String(id)])
+  }
+
+  function queueAction(command) {
+    pendingActionCommand = command
     busy = true
     errorText = ""
-    actionProc.running = true
+    // A scene may disable the monitor hosting this panel. Let Hyprland tear
+    // down the popup and its focus grab while that monitor still exists.
+    close()
+    actionDelay.restart()
   }
 
   function applyNext() {
     if (busy) return
-    actionProc.command = [backendPath, "next"]
-    busy = true
-    errorText = ""
-    actionProc.running = true
+    queueAction([backendPath, "next"])
   }
 
   function deleteScene(id) {
@@ -278,6 +283,17 @@ Panel {
     running: root.opened && !root.editing
     repeat: true
     onTriggered: root.refresh()
+  }
+
+  Timer {
+    id: actionDelay
+    interval: 300
+    repeat: false
+    onTriggered: {
+      actionProc.command = root.pendingActionCommand
+      root.pendingActionCommand = []
+      actionProc.running = true
+    }
   }
 
   Process {
