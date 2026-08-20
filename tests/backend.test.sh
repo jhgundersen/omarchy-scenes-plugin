@@ -89,9 +89,9 @@ if $SCENES save "$scene" >/dev/null 2>&1; then
 fi
 
 $SCENES apply "$id"
-grep -F 'hyprctl keyword monitor DP-1,preferred,0x0,1.25' "$LOG" >/dev/null
-grep -F 'hyprctl dispatch moveworkspacetomonitor 2 DP-1' "$LOG" >/dev/null
-grep -F 'hyprctl keyword monitor HDMI-A-1,disable' "$LOG" >/dev/null
+grep -F 'hyprctl eval hl.monitor({ output = "DP-1", mode = "preferred", position = "0x0", scale = 1.25, disabled = false })' "$LOG" >/dev/null
+grep -F 'hyprctl eval hl.dispatch(hl.dsp.workspace.move({ workspace = "2", monitor = "DP-1" }))' "$LOG" >/dev/null
+grep -F 'hyprctl eval hl.monitor({ output = "HDMI-A-1", disabled = true })' "$LOG" >/dev/null
 grep -F 'audio-set 34 sink.desk' "$LOG" >/dev/null
 jq -e --arg id "$id" '.lastSceneId == $id' "$XDG_STATE_HOME/omarchy-scenes/state.json" >/dev/null
 
@@ -101,10 +101,10 @@ jq -e '.scenes[] | select(.id == "multi") | .icon == "󰎆"' "$XDG_CONFIG_HOME/o
 : >"$LOG"
 $SCENES apply multi
 grep -F 'omarchy theme set Tokyo Night' "$LOG" >/dev/null
-grep -F 'hyprctl keyword monitor DP-1,preferred,0x0,1.25' "$LOG" >/dev/null
-grep -F 'hyprctl keyword monitor HDMI-A-1,preferred,auto-right,1' "$LOG" >/dev/null
+grep -F 'hyprctl eval hl.monitor({ output = "DP-1", mode = "preferred", position = "0x0", scale = 1.25, disabled = false })' "$LOG" >/dev/null
+grep -F 'hyprctl eval hl.monitor({ output = "HDMI-A-1", mode = "preferred", position = "auto-right", scale = 1, disabled = false })' "$LOG" >/dev/null
 theme_line=$(grep -nF 'omarchy theme set Tokyo Night' "$LOG" | cut -d: -f1)
-monitor_line=$(grep -nF 'hyprctl keyword monitor DP-1,preferred,0x0,1.25' "$LOG" | cut -d: -f1)
+monitor_line=$(grep -nF 'hyprctl eval hl.monitor({ output = "DP-1", mode = "preferred", position = "0x0", scale = 1.25, disabled = false })' "$LOG" | cut -d: -f1)
 (( theme_line < monitor_line ))
 
 missing='{"id":"missing","name":"Missing","theme":null,"monitors":[{"connector":"DP-9","description":"Gone","primary":true,"scale":"auto"}],"audio":{"name":"sink.desk","label":"Desk speakers"}}'
@@ -114,7 +114,7 @@ if $SCENES apply missing >/dev/null 2>&1; then
   echo "missing display scene applied" >&2
   exit 1
 fi
-if grep -F 'keyword monitor' "$LOG" >/dev/null; then
+if grep -F 'hl.monitor' "$LOG" >/dev/null; then
   echo "display changed after failed preflight" >&2
   exit 1
 fi
@@ -127,6 +127,12 @@ partial_status=$?
 set -e
 [[ $partial_status -eq 3 ]]
 jq -e '.lastSceneId == "partial"' "$XDG_STATE_HOME/omarchy-scenes/state.json" >/dev/null
+
+alias_scene='{"id":"alias","name":"Alias","theme":null,"monitors":[{"connector":"DP-1","description":"Desk","primary":true,"scale":"auto"}],"audio":{"name":"alsa_output.pci-0000_0b_00.1.hdmi-stereo","label":"Display audio"}}'
+$SCENES save "$alias_scene" >/dev/null
+: >"$LOG"
+MOCK_SINKS='[{"index":98,"name":"alsa_output.pci-0000_0b_00.1.hdmi-stereo-extra1","description":"HDMI 2"}]' $SCENES apply alias
+grep -F 'audio-set 98 alsa_output.pci-0000_0b_00.1.hdmi-stereo-extra1' "$LOG" >/dev/null
 
 $SCENES delete "$id"
 jq -e --arg id "$id" 'all(.scenes[]; .id != $id)' "$XDG_CONFIG_HOME/omarchy/scenes.json" >/dev/null

@@ -42,6 +42,15 @@ assert.equal(Model.sceneMatches(scene, [displays[0]], "sink.desk", "Gruvbox"), t
 assert.equal(Model.sceneMatches(scene, [displays[0]], "sink.other", "Gruvbox"), false);
 assert.equal(Model.sceneMatches(scene, displays, "sink.desk", "Gruvbox"), true, "disabled displays do not affect matching");
 assert.equal(Model.activeSceneId([scene], [displays[0]], "sink.desk", "Gruvbox"), "desk");
+assert.equal(
+  Model.audioSinkMatches(
+    "alsa_output.pci-0000_0b_00.1.hdmi-stereo",
+    "alsa_output.pci-0000_0b_00.1.hdmi-stereo-extra1"
+  ),
+  true,
+  "PipeWire profiles on the same hardware output match"
+);
+assert.equal(Model.audioSinkMatches("sink.desk", "sink.other"), false);
 assert.match(Model.sceneSummary(scene), /1 display/);
 assert.equal(
   Model.sceneSummary({ ...scene, monitors: { 0: scene.monitors[0], length: 1 } }, "Friendly speakers"),

@@ -94,6 +94,19 @@ function sceneSummary(scene, resolvedAudioLabel) {
   return display + " · " + audio + " · " + theme
 }
 
+function audioDeviceKey(name) {
+  var value = String(name || "")
+  if (value.indexOf("alsa_output.") !== 0) return value
+  var profileSeparator = value.lastIndexOf(".")
+  return profileSeparator > 0 ? value.slice(0, profileSeparator) : value
+}
+
+function audioSinkMatches(savedName, currentName) {
+  var saved = String(savedName || "")
+  var current = String(currentName || "")
+  return saved === current || (saved !== "" && current !== "" && audioDeviceKey(saved) === audioDeviceKey(current))
+}
+
 function sceneMatches(scene, liveMonitors, currentSink, currentTheme) {
   if (!scene) return false
   var saved = Array.isArray(scene.monitors) ? scene.monitors : []
@@ -108,7 +121,7 @@ function sceneMatches(scene, liveMonitors, currentSink, currentTheme) {
     if (!match) return false
     if (String(saved[i].scale) !== "auto" && Math.abs(Number(saved[i].scale) - Number(match.scale)) > 0.01) return false
   }
-  if (!scene.audio || String(scene.audio.name) !== String(currentSink || "")) return false
+  if (!scene.audio || !audioSinkMatches(scene.audio.name, currentSink)) return false
   if (scene.theme && String(scene.theme).toLowerCase() !== String(currentTheme || "").toLowerCase()) return false
   return true
 }
@@ -132,6 +145,8 @@ if (typeof module !== "undefined") {
     preferredDimensions: preferredDimensions,
     availableScales: availableScales,
     sceneSummary: sceneSummary,
+    audioDeviceKey: audioDeviceKey,
+    audioSinkMatches: audioSinkMatches,
     sceneMatches: sceneMatches,
     activeSceneId: activeSceneId
   }
