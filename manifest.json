@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "jhgundersen.scenes",
   "name": "Scenes",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "author": "Jon Håvard Gundersen",
   "license": "MIT",
   "description": "Switch named display, audio, and theme setups from the Omarchy bar.",

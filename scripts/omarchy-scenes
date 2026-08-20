@@ -90,11 +90,18 @@ monitor_inventory() {
 }
 
 sink_inventory() {
-  "$PACTL_BIN" -f json list sinks 2>/dev/null | jq -ce '[.[] | {
-    name: .name,
-    label: (.description // .properties."device.description" // .name),
-    id: (.index | tostring)
-  }]'
+  "$PACTL_BIN" -f json list sinks 2>/dev/null | jq -ce '
+    def friendly_label:
+      tostring
+      | sub("^sof-soundwire[[:space:]]+"; ""; "i")
+      | sub("^built-?in audio[[:space:]]+"; ""; "i")
+      | sub("[[:space:]]+Output$"; ""; "i")
+      | sub("[[:space:]]+Input$"; ""; "i");
+    [.[] | {
+      name: .name,
+      label: ((.properties."node.nick" // .properties."device.profile.description" // .description // .properties."node.description" // .name) | friendly_label),
+      id: (.index | tostring)
+    }]'
 }
 
 theme_inventory() {

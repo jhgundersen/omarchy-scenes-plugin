@@ -34,7 +34,7 @@ if [[ $* == "-f json list sinks" ]]; then
   if [[ ${MOCK_SINKS+x} ]]; then
     printf '%s\n' "$MOCK_SINKS"
   else
-    printf '%s\n' '[{"index":34,"name":"sink.desk","description":"Desk speakers"}]'
+    printf '%s\n' '[{"index":34,"name":"sink.desk","description":"Built-in Audio Desk speakers Output","properties":{"node.nick":"Desk speakers Output"}}]'
   fi
 elif [[ $* == "get-default-sink" ]]; then
   printf '%s\n' 'sink.desk'
@@ -74,6 +74,8 @@ export MOCK_LOG="$LOG"
 export MOCK_MONITORS="$TMP/monitors.json"
 
 SCENES="$ROOT/scripts/omarchy-scenes"
+
+$SCENES status | jq -e '.sinks[0].label == "Desk speakers"' >/dev/null
 
 scene='{"id":"","name":"Desk","theme":"Gruvbox","monitors":[{"connector":"DP-1","description":"Desk","primary":true,"scale":"1.25"}],"audio":{"name":"sink.desk","label":"Desk speakers"}}'
 id=$($SCENES save "$scene")

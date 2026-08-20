@@ -397,7 +397,10 @@ Panel {
 
                 Button {
                   id: editButton
-                  text: "Edit"
+                  width: implicitHeight
+                  iconText: "󰏫"
+                  iconSize: Style.font.title
+                  tooltipText: "Edit scene"
                   bordered: true
                   focusable: true
                   foreground: root.bar.foreground
@@ -407,7 +410,10 @@ Panel {
 
                 Button {
                   id: deleteButton
-                  text: root.pendingDeleteId === String(modelData.id) ? "Confirm" : "Delete"
+                  width: implicitHeight
+                  iconText: root.pendingDeleteId === String(modelData.id) ? "󰄬" : "󰆴"
+                  iconSize: Style.font.title
+                  tooltipText: root.pendingDeleteId === String(modelData.id) ? "Confirm deletion" : "Delete scene"
                   bordered: true
                   focusable: true
                   foreground: root.bar.foreground
