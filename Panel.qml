@@ -128,6 +128,11 @@ Panel {
     return values
   }
 
+  function syncDraftSelectors() {
+    themeDropdown.value = draftTheme
+    audioDropdown.value = draftAudioName
+  }
+
   function startCreate() {
     editing = true
     draftId = ""
@@ -138,7 +143,11 @@ Panel {
     draftMonitors = []
     draftAudioName = currentSink || (sinks.length > 0 ? String(sinks[0].name) : "")
     pendingDeleteId = ""
-    Qt.callLater(function() { if (root.editing) nameField.forceActiveFocus() })
+    Qt.callLater(function() {
+      if (!root.editing) return
+      root.syncDraftSelectors()
+      nameField.forceActiveFocus()
+    })
   }
 
   function startEdit(scene) {
@@ -152,7 +161,11 @@ Panel {
     draftMonitors = JSON.parse(JSON.stringify(scene.monitors || []))
     draftAudioName = String(scene.audio && scene.audio.name || "")
     pendingDeleteId = ""
-    Qt.callLater(function() { if (root.editing) nameField.forceActiveFocus() })
+    Qt.callLater(function() {
+      if (!root.editing) return
+      root.syncDraftSelectors()
+      nameField.forceActiveFocus()
+    })
   }
 
   function cancelEdit() {
@@ -518,6 +531,7 @@ Panel {
             PanelSeparator { foreground: root.bar.foreground }
             PanelSectionHeader { text: "THEME"; foreground: root.bar.foreground; fontFamily: root.bar.fontFamily }
             Dropdown {
+              id: themeDropdown
               width: parent.width
               showLabel: false
               value: root.draftTheme
@@ -648,6 +662,7 @@ Panel {
             PanelSeparator { foreground: root.bar.foreground }
             PanelSectionHeader { text: "AUDIO OUTPUT"; foreground: root.bar.foreground; fontFamily: root.bar.fontFamily }
             Dropdown {
+              id: audioDropdown
               width: parent.width
               showLabel: false
               value: root.draftAudioName

@@ -105,6 +105,13 @@ jq -e --arg id "$id" '.lastSceneId == $id' "$XDG_STATE_HOME/omarchy-scenes/state
 multi='{"id":"multi","name":"Studio","icon":"󰎆","theme":"Tokyo Night","monitors":[{"connector":"DP-1","description":"Desk","primary":true,"scale":"1.25"},{"connector":"HDMI-A-1","description":"TV","primary":false,"direction":"right","scale":"1"}],"audio":{"name":"sink.desk","label":"Desk speakers"}}'
 $SCENES save "$multi" >/dev/null
 jq -e '.scenes[] | select(.id == "multi") | .icon == "󰎆"' "$XDG_CONFIG_HOME/omarchy/scenes.json" >/dev/null
+multi_updated='{"id":"multi","name":"Studio","icon":"󰎆","theme":"Gruvbox","monitors":[{"connector":"DP-1","description":"Desk","primary":true,"scale":"1.25"}],"audio":{"name":"sink.other","label":"Other speakers"}}'
+$SCENES save "$multi_updated" >/dev/null
+jq -e --arg id "$id" '
+  (.scenes[] | select(.id == "multi") | .theme == "Gruvbox" and .audio.name == "sink.other")
+  and (.scenes[] | select(.id == $id) | .theme == "Gruvbox" and .audio.name == "sink.desk")
+' "$XDG_CONFIG_HOME/omarchy/scenes.json" >/dev/null
+$SCENES save "$multi" >/dev/null
 : >"$LOG"
 $SCENES apply multi
 grep -F 'omarchy theme set Tokyo Night' "$LOG" >/dev/null
