@@ -43,6 +43,7 @@ Panel {
   property string currentTheme: ""
   property string currentSink: ""
   property string lastSceneId: ""
+  property string defaultSceneId: ""
   property string activeSceneId: ""
   property bool busy: false
   property string errorText: ""
@@ -73,6 +74,7 @@ Panel {
       currentTheme = String(value.currentTheme || "")
       currentSink = String(value.currentSink || "")
       lastSceneId = String(value.lastSceneId || "")
+      defaultSceneId = String(value.defaultSceneId || "")
       activeSceneId = Model.activeSceneId(scenes, monitors, currentSink, currentTheme)
       if (selectedSceneIndex >= scenes.length) selectedSceneIndex = Math.max(0, scenes.length - 1)
       errorText = ""
@@ -246,6 +248,14 @@ Panel {
     mutationProc.running = true
   }
 
+  function setDefaultScene(id) {
+    if (busy || !id || defaultSceneId === String(id)) return
+    mutationProc.command = [backendPath, "set-default", String(id)]
+    busy = true
+    errorText = ""
+    mutationProc.running = true
+  }
+
   function moveSceneCursor(delta) {
     if (scenes.length === 0) return
     selectedSceneIndex = (selectedSceneIndex + delta + scenes.length) % scenes.length
@@ -399,7 +409,7 @@ Panel {
                 spacing: Style.space(6)
 
                 Button {
-                  width: Math.max(0, parent.width - editButton.width - deleteButton.width - parent.spacing * 2)
+                  width: Math.max(0, parent.width - defaultButton.width - editButton.width - deleteButton.width - parent.spacing * 3)
                   text: String(modelData.name)
                   iconText: root.sceneIcon(modelData)
                   leftAlign: true
@@ -412,6 +422,20 @@ Panel {
                   tooltipText: root.sceneSummary(modelData)
                   onClicked: root.applyScene(modelData.id)
                   onHovered: function(value) { if (value) { root.cursorActive = true; root.selectedSceneIndex = index } }
+                }
+
+                Button {
+                  id: defaultButton
+                  width: implicitHeight
+                  iconText: root.defaultSceneId === String(modelData.id) ? "󰓎" : "󰓏"
+                  iconSize: Style.font.title
+                  active: root.defaultSceneId === String(modelData.id)
+                  tooltipText: root.defaultSceneId === String(modelData.id) ? "Default scene at login" : "Make default at login"
+                  bordered: true
+                  focusable: true
+                  foreground: root.bar.foreground
+                  fontFamily: root.bar.fontFamily
+                  onClicked: root.setDefaultScene(String(modelData.id))
                 }
 
                 Button {

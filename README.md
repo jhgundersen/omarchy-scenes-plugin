@@ -67,7 +67,7 @@ Click the display icon in the bar and choose **Add scene**. A scene requires:
 
 The primary display is placed at `0x0`. Secondary displays use Hyprland's automatic left, right, above, or below placement in the order shown in the editor. Displays outside the scene are disabled. Display scales use the same equal-width preset selector as Omarchy's Display panel.
 
-Before applying anything, Scenes verifies that all saved displays and the optional theme are available. It applies a changed theme before the monitor layout because Omarchy's theme command reloads Hyprland. Workspaces already on selected displays remain there; workspaces on displays being disabled move to the primary display.
+Before applying anything, Scenes verifies that all saved displays and the optional theme are available. It switches displays and audio first, stabilizes the active workspace, and applies the theme last. Workspaces already on selected displays remain there; workspaces on displays being disabled move to the primary display.
 
 Some HDMI audio outputs only appear after their display is enabled. Scenes waits briefly for the saved output. If it remains unavailable, the display and theme changes stay applied, the previous audio output remains selected, and a notification explains the partial result.
 
@@ -85,6 +85,8 @@ Runtime cycling state is kept in:
 ${XDG_STATE_HOME:-~/.local/state}/omarchy-scenes/state.json
 ```
 
+The active monitor layout is also generated there as `monitors.lua`. Load that file from `~/.config/hypr/monitors.lua` to keep the current scene through Hyprland reloads. A scene marked with the star is the login default; run `omarchy-scenes apply-default` from `~/.config/hypr/autostart.lua` to apply it once at boot.
+
 The plugin repository itself remains clean, so `omarchy plugin update` can fast-forward it normally.
 
 ## Development
@@ -98,4 +100,4 @@ node tests/model.test.js
 tests/backend.test.sh
 ```
 
-V1 intentionally keeps each monitor at its preferred mode. Exact resolution and refresh-rate selection, rotation, mirroring, and automatic login application are not included yet.
+V1 intentionally keeps each monitor at its preferred mode. Exact resolution and refresh-rate selection, rotation, and mirroring are not included yet.

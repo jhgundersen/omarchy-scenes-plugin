@@ -84,6 +84,9 @@ id=$($SCENES save "$scene")
 [[ -n $id ]]
 jq -e --arg id "$id" '.scenes[0].id == $id and .scenes[0].name == "Desk"' "$XDG_CONFIG_HOME/omarchy/scenes.json" >/dev/null
 jq -e '.scenes[0].icon == "󰍹"' "$XDG_CONFIG_HOME/omarchy/scenes.json" >/dev/null
+$SCENES set-default "$id"
+jq -e --arg id "$id" '.defaultSceneId == $id' "$XDG_CONFIG_HOME/omarchy/scenes.json" >/dev/null
+$SCENES status | jq -e --arg id "$id" '.defaultSceneId == $id' >/dev/null
 
 if $SCENES save "$scene" >/dev/null 2>&1; then
   echo "duplicate scene name was accepted" >&2
@@ -101,6 +104,12 @@ focus_line=$(grep -nF 'hyprctl eval hl.dispatch(hl.dsp.focus({ workspace = "1" }
 (( audio_line < focus_line ))
 grep -F 'audio-set 34 sink.desk' "$LOG" >/dev/null
 jq -e --arg id "$id" '.lastSceneId == $id' "$XDG_STATE_HOME/omarchy-scenes/state.json" >/dev/null
+grep -F 'hl.monitor({ output = "DP-1", mode = "preferred", position = "0x0", scale = 1.25, disabled = false })' "$XDG_STATE_HOME/omarchy-scenes/monitors.lua" >/dev/null
+grep -F 'hl.monitor({ output = "HDMI-A-1", disabled = true })' "$XDG_STATE_HOME/omarchy-scenes/monitors.lua" >/dev/null
+if command -v luac >/dev/null; then luac -p "$XDG_STATE_HOME/omarchy-scenes/monitors.lua"; fi
+: >"$LOG"
+$SCENES apply-default
+grep -F 'audio-set 34 sink.desk' "$LOG" >/dev/null
 
 multi='{"id":"multi","name":"Studio","icon":"󰎆","theme":"Tokyo Night","monitors":[{"connector":"DP-1","description":"Desk","primary":true,"scale":"1.25"},{"connector":"HDMI-A-1","description":"TV","primary":false,"direction":"right","scale":"1"}],"audio":{"name":"sink.desk","label":"Desk speakers"}}'
 $SCENES save "$multi" >/dev/null
@@ -154,5 +163,6 @@ grep -F 'audio-set 98 alsa_output.pci-0000_0b_00.1.hdmi-stereo-extra1' "$LOG" >/
 
 $SCENES delete "$id"
 jq -e --arg id "$id" 'all(.scenes[]; .id != $id)' "$XDG_CONFIG_HOME/omarchy/scenes.json" >/dev/null
+jq -e '.defaultSceneId == ""' "$XDG_CONFIG_HOME/omarchy/scenes.json" >/dev/null
 
 echo "backend tests passed"
