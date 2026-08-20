@@ -31,7 +31,7 @@ USAGE
 
 notify() {
   local message="$1"
-  "$NOTIFY_BIN" -g '󰍹' "Scenes" "$message" >/dev/null 2>&1 || true
+  "$NOTIFY_BIN" -g '󰌨' "Scenes" "$message" >/dev/null 2>&1 || true
 }
 
 slugify() {

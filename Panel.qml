@@ -13,20 +13,21 @@ Panel {
   manageIpc: false
 
   readonly property string backendPath: decodeURIComponent(String(Qt.resolvedUrl("scripts/omarchy-scenes")).replace(/^file:\/\//, ""))
+  readonly property string pluginIcon: "󰌨"
   readonly property var scaleOptions: ["auto", "1", "1.25", "1.6", "2", "3", "4"]
   readonly property var iconOptions: [
     { value: "󰍹", label: "Display" },
     { value: "󰌢", label: "Laptop" },
     { value: "󰋜", label: "Home" },
-    { value: "󰇄", label: "Desk" },
-    { value: "󰉋", label: "Work" },
+    { value: "󱈹", label: "Desk" },
+    { value: "󰒓", label: "Setup" },
     { value: "󰐩", label: "Presentation" },
     { value: "󰊴", label: "Gaming" },
+    { value: "󰎁", label: "Movie" },
     { value: "󰎆", label: "Music" },
     { value: "󰋋", label: "Headphones" },
     { value: "󰖙", label: "Day" },
-    { value: "󰖔", label: "Night" },
-    { value: "󰒓", label: "Setup" }
+    { value: "󰖔", label: "Night" }
   ]
   readonly property var directionOptions: [
     { value: "left", label: "Left" },
@@ -294,7 +295,7 @@ Panel {
     id: barButton
     anchors.fill: parent
     bar: root.bar
-    text: root.busy ? "󰦖" : (root.activeSceneId ? root.activeSceneIcon() : "󰍹")
+    text: root.busy ? "󰦖" : root.pluginIcon
     tooltipText: root.activeSceneId ? "Scene: " + root.activeSceneName() : "Scenes"
     onPressed: function(button) { root.toggle() }
     onWheelMoved: function(delta) { if (delta !== 0) root.applyNext() }
