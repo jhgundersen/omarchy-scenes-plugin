@@ -272,6 +272,13 @@ focus_workspace() {
   "$HYPRCTL_BIN" eval "hl.dispatch(hl.dsp.focus({ workspace = $workspace_lua }))"
 }
 
+move_workspace_to_monitor() {
+  local workspace_lua monitor_lua
+  workspace_lua=$(lua_quote "$1")
+  monitor_lua=$(lua_quote "$2")
+  "$HYPRCTL_BIN" eval "hl.dispatch(hl.dsp.workspace.move({ workspace = $workspace_lua, monitor = $monitor_lua }))"
+}
+
 restore_monitors() {
   local snapshot="$1" current row connector mode position scale
   current=$(monitor_inventory 2>/dev/null || printf '[]')
@@ -383,6 +390,9 @@ apply_scene() {
     notify "Displays did not become ready; restored the previous layout"
     return 1
   fi
+
+  primary=$(jq -r '.monitors[] | select(.primary == true) | .resolvedConnector' <<<"$resolved")
+  [[ -z $active_workspace ]] || move_workspace_to_monitor "$active_workspace" "$primary" >/dev/null || true
 
   selected=$(jq -c '[.monitors[].resolvedConnector]' <<<"$resolved")
   live=$(monitor_inventory)
