@@ -43,6 +43,11 @@ assert.equal(Model.sceneMatches(scene, [displays[0]], "sink.other", "Gruvbox"), 
 assert.equal(Model.sceneMatches(scene, displays, "sink.desk", "Gruvbox"), true, "disabled displays do not affect matching");
 assert.equal(Model.activeSceneId([scene], [displays[0]], "sink.desk", "Gruvbox"), "desk");
 assert.match(Model.sceneSummary(scene), /1 display/);
+assert.equal(
+  Model.sceneSummary({ ...scene, monitors: { 0: scene.monitors[0], length: 1 } }, "Friendly speakers"),
+  "1 display · Friendly speakers · Gruvbox",
+  "summary supports QML array-like monitor lists and current audio labels"
+);
 assert.deepEqual(Model.availableScales(["auto", "1", "1.25", "1.6"], displays[0], "1.25"), ["auto", "1", "1.25", "1.6"]);
 assert.deepEqual(Model.preferredDimensions({ width: 0, height: 0, availableModes: ["3840x2160@120Hz"] }), { width: 3840, height: 2160 });
 

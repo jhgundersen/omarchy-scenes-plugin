@@ -103,9 +103,15 @@ Panel {
     return Model.monitorFor(monitors, connector)
   }
 
-  function sinkLabel(name) {
+  function sinkLabel(name, fallback) {
     for (var i = 0; i < sinks.length; i++) if (String(sinks[i].name) === String(name)) return String(sinks[i].label)
-    return name
+    return fallback || name
+  }
+
+  function sceneSummary(scene) {
+    var audio = scene && scene.audio ? scene.audio : null
+    var label = audio ? sinkLabel(String(audio.name || ""), String(audio.label || "")) : ""
+    return Model.sceneSummary(scene, label)
   }
 
   function themeOptions() {
@@ -390,7 +396,7 @@ Panel {
                   focusable: true
                   foreground: root.bar.foreground
                   fontFamily: root.bar.fontFamily
-                  tooltipText: Model.sceneSummary(modelData)
+                  tooltipText: root.sceneSummary(modelData)
                   onClicked: root.applyScene(modelData.id)
                   onHovered: function(value) { if (value) { root.cursorActive = true; root.selectedSceneIndex = index } }
                 }

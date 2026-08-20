@@ -85,11 +85,11 @@ function availableScales(scales, device, current) {
   return result
 }
 
-function sceneSummary(scene) {
+function sceneSummary(scene, resolvedAudioLabel) {
   if (!scene) return ""
-  var monitors = Array.isArray(scene.monitors) ? scene.monitors : []
-  var display = monitors.length === 1 ? "1 display" : monitors.length + " displays"
-  var audio = scene.audio && scene.audio.label ? String(scene.audio.label) : "No audio"
+  var monitorCount = scene.monitors && typeof scene.monitors.length === "number" ? scene.monitors.length : 0
+  var display = monitorCount === 1 ? "1 display" : monitorCount + " displays"
+  var audio = resolvedAudioLabel || (scene.audio && scene.audio.label ? String(scene.audio.label) : "No audio")
   var theme = scene.theme ? String(scene.theme) : "current theme"
   return display + " · " + audio + " · " + theme
 }
