@@ -376,21 +376,6 @@ apply_scene() {
   snapshot="$inventory"
   active_workspace=$("$HYPRCTL_BIN" activeworkspace -j | jq -r '.name // ""')
   current=$(current_theme)
-  if [[ -n $theme && $(slugify "$theme") != "$(slugify "$current")" ]]; then
-    if ! "$OMARCHY_BIN" theme set "$theme" >/dev/null; then
-      notify "Could not apply theme $theme"
-      echo "could not apply theme: $theme" >&2
-      return 1
-    fi
-    inventory=$(monitor_inventory)
-    resolved=$(resolve_monitors "$scene" "$inventory")
-    missing=$(jq -r '[.monitors[] | select(.resolvedConnector == "") | .description] | join(", ")' <<<"$resolved")
-    if [[ -n $missing ]]; then
-      restore_monitors "$snapshot"
-      notify "A display disappeared during the theme change; restored the previous layout"
-      return 1
-    fi
-  fi
 
   while IFS= read -r row; do
     connector=$(jq -r '.resolvedConnector' <<<"$row")
@@ -451,6 +436,61 @@ apply_scene() {
   if ! settle_workspace "$active_workspace"; then
     notify "Scene applied, but workspace $active_workspace could not be restored"
     return 4
+  fi
+
+  if [[ -n $theme && $(slugify "$theme") != "$(slugify "$current")" ]]; then
+    if ! "$OMARCHY_BIN" theme set "$theme" >/dev/null; then
+      notify "Scene applied, but theme $theme could not be applied"
+      echo "could not apply theme: $theme" >&2
+      return 5
+    fi
+    # Theme changes reload Hyprland asynchronously and can restore the static
+    # monitor config just after the command returns. Let that reload land, then
+    # restore the selected scene layout without applying the theme again.
+    sleep 0.5
+    inventory=$(monitor_inventory)
+    resolved=$(resolve_monitors "$scene" "$inventory")
+    missing=$(jq -r '[.monitors[] | select(.resolvedConnector == "") | .description] | join(", ")' <<<"$resolved")
+    if [[ -n $missing ]]; then
+      notify "Scene applied, but a display disappeared during the theme update"
+      return 5
+    fi
+    while IFS= read -r row; do
+      connector=$(jq -r '.resolvedConnector' <<<"$row")
+      scale=$(jq -r '.scale' <<<"$row")
+      configure_monitor "$connector" "preferred" "auto-right" "$scale" >/dev/null || return 5
+    done < <(jq -c '.monitors[]' <<<"$resolved")
+    if ! wait_for_scene_monitors "$resolved"; then
+      notify "Scene applied, but displays changed during the theme update"
+      return 5
+    fi
+    primary=$(jq -r '.monitors[] | select(.primary == true) | .resolvedConnector' <<<"$resolved")
+    [[ -z $active_workspace ]] || move_workspace_to_monitor "$active_workspace" "$primary" >/dev/null || true
+    selected=$(jq -c '[.monitors[].resolvedConnector]' <<<"$resolved")
+    live=$(monitor_inventory)
+    while IFS= read -r connector; do
+      if ! jq -e --arg name "$connector" 'index($name) != null' <<<"$selected" >/dev/null; then
+        disable_monitor "$connector" >/dev/null || true
+      fi
+    done < <(jq -r '.[] | select(.enabled) | .connector' <<<"$live")
+    while IFS= read -r row; do
+      connector=$(jq -r '.resolvedConnector' <<<"$row")
+      scale=$(jq -r '.scale' <<<"$row")
+      if [[ $(jq -r '.primary' <<<"$row") == true ]]; then
+        position="0x0"
+      else
+        position="auto-$(jq -r '.direction' <<<"$row")"
+      fi
+      configure_monitor "$connector" "preferred" "$position" "$scale" >/dev/null || return 5
+    done < <(jq -c '(.monitors[] | select(.primary == true)), (.monitors[] | select(.primary != true))' <<<"$resolved")
+    if ! wait_for_scene_monitors "$resolved"; then
+      notify "Scene applied, but displays did not settle after the theme update"
+      return 5
+    fi
+    if ! settle_workspace "$active_workspace"; then
+      notify "Scene applied, but workspace $active_workspace changed during the theme update"
+      return 5
+    fi
   fi
 
   notify "Switched to $(jq -r '.name' <<<"$scene")"

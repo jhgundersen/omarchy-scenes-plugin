@@ -118,8 +118,12 @@ grep -F 'omarchy theme set Tokyo Night' "$LOG" >/dev/null
 grep -F 'hyprctl eval hl.monitor({ output = "DP-1", mode = "preferred", position = "0x0", scale = 1.25, disabled = false })' "$LOG" >/dev/null
 grep -F 'hyprctl eval hl.monitor({ output = "HDMI-A-1", mode = "preferred", position = "auto-right", scale = 1, disabled = false })' "$LOG" >/dev/null
 theme_line=$(grep -nF 'omarchy theme set Tokyo Night' "$LOG" | cut -d: -f1)
-monitor_line=$(grep -nF 'hyprctl eval hl.monitor({ output = "DP-1", mode = "preferred", position = "0x0", scale = 1.25, disabled = false })' "$LOG" | cut -d: -f1)
-(( theme_line < monitor_line ))
+first_monitor_line=$(grep -nF 'hyprctl eval hl.monitor({ output = "DP-1", mode = "preferred", position = "0x0", scale = 1.25, disabled = false })' "$LOG" | head -1 | cut -d: -f1)
+last_monitor_line=$(grep -nF 'hyprctl eval hl.monitor({ output = "DP-1", mode = "preferred", position = "0x0", scale = 1.25, disabled = false })' "$LOG" | tail -1 | cut -d: -f1)
+audio_line=$(grep -nF 'audio-set 34 sink.desk' "$LOG" | tail -1 | cut -d: -f1)
+(( first_monitor_line < theme_line ))
+(( audio_line < theme_line ))
+(( theme_line < last_monitor_line ))
 
 missing='{"id":"missing","name":"Missing","theme":null,"monitors":[{"connector":"DP-9","description":"Gone","primary":true,"scale":"auto"}],"audio":{"name":"sink.desk","label":"Desk speakers"}}'
 $SCENES save "$missing" >/dev/null
