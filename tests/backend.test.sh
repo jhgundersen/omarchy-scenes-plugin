@@ -96,6 +96,9 @@ grep -F 'hyprctl eval hl.monitor({ output = "DP-1", mode = "preferred", position
 grep -F 'hyprctl eval hl.dispatch(hl.dsp.workspace.move({ workspace = "1", monitor = "DP-1" }))' "$LOG" >/dev/null
 grep -F 'hyprctl eval hl.dispatch(hl.dsp.focus({ workspace = "1" }))' "$LOG" >/dev/null
 grep -F 'hyprctl eval hl.monitor({ output = "HDMI-A-1", disabled = true })' "$LOG" >/dev/null
+audio_line=$(grep -nF 'audio-set 34 sink.desk' "$LOG" | tail -1 | cut -d: -f1)
+focus_line=$(grep -nF 'hyprctl eval hl.dispatch(hl.dsp.focus({ workspace = "1" }))' "$LOG" | tail -1 | cut -d: -f1)
+(( audio_line < focus_line ))
 grep -F 'audio-set 34 sink.desk' "$LOG" >/dev/null
 jq -e --arg id "$id" '.lastSceneId == $id' "$XDG_STATE_HOME/omarchy-scenes/state.json" >/dev/null
 

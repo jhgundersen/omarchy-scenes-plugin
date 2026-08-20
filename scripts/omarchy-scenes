@@ -272,6 +272,23 @@ focus_workspace() {
   "$HYPRCTL_BIN" eval "hl.dispatch(hl.dsp.focus({ workspace = $workspace_lua }))"
 }
 
+settle_workspace() {
+  local wanted="$1" current stable=0
+  [[ -n $wanted ]] || return 0
+  for _ in {1..15}; do
+    focus_workspace "$wanted" >/dev/null || true
+    sleep 0.2
+    current=$("$HYPRCTL_BIN" activeworkspace -j 2>/dev/null | jq -r '.name // ""')
+    if [[ $current == "$wanted" ]]; then
+      (( stable += 1 ))
+      (( stable >= 3 )) && return 0
+    else
+      stable=0
+    fi
+  done
+  return 1
+}
+
 move_workspace_to_monitor() {
   local workspace_lua monitor_lua
   workspace_lua=$(lua_quote "$1")
@@ -423,14 +440,17 @@ apply_scene() {
     notify "Displays did not settle; restored the previous layout"
     return 1
   fi
-  [[ -z $active_workspace ]] || focus_workspace "$active_workspace" >/dev/null || true
-
   write_json_atomic "$STATE_FILE" "$(jq -cn --arg id "$(jq -r '.id' <<<"$scene")" '{lastSceneId:$id}')"
 
   sink_name=$(jq -r '.audio.name' <<<"$scene")
   if ! apply_audio "$sink_name"; then
     notify "Scene applied, but audio output is unavailable"
     return 3
+  fi
+
+  if ! settle_workspace "$active_workspace"; then
+    notify "Scene applied, but workspace $active_workspace could not be restored"
+    return 4
   fi
 
   notify "Switched to $(jq -r '.name' <<<"$scene")"
