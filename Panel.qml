@@ -105,6 +105,7 @@ Panel {
     draftMonitors = []
     draftAudioName = currentSink || (sinks.length > 0 ? String(sinks[0].name) : "")
     pendingDeleteId = ""
+    Qt.callLater(function() { if (root.editing) nameField.forceActiveFocus() })
   }
 
   function startEdit(scene) {
@@ -116,6 +117,7 @@ Panel {
     draftMonitors = JSON.parse(JSON.stringify(scene.monitors || []))
     draftAudioName = String(scene.audio && scene.audio.name || "")
     pendingDeleteId = ""
+    Qt.callLater(function() { if (root.editing) nameField.forceActiveFocus() })
   }
 
   function cancelEdit() {
@@ -281,7 +283,10 @@ Panel {
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
-      enabled: !root.editing
+      // Keep the content enabled while editing. Blocking only this key
+      // dispatcher lets TextField, Dropdown, Button, and normal Tab focus
+      // handling receive input without the panel's j/k shortcuts stealing it.
+      blocked: root.editing
       onMoveRequested: function(dx, dy) {
         if (!root.cursorActive) { root.cursorActive = true; return }
         if (dy !== 0) root.moveSceneCursor(dy)
@@ -410,6 +415,7 @@ Panel {
 
             PanelSectionHeader { text: "NAME"; foreground: root.bar.foreground; fontFamily: root.bar.fontFamily }
             TextField {
+              id: nameField
               width: parent.width
               text: root.draftName
               placeholderText: "Desk, Couch, Presentation…"
