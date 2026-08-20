@@ -148,6 +148,8 @@ validate_scene() {
     select(type == "object")
     | .name = ((.name // "") | tostring | gsub("^[[:space:]]+|[[:space:]]+$"; ""))
     | select((.name | length) >= 1 and (.name | length) <= 64)
+    | .icon = (if ((.icon // "") | tostring | length) > 0 then (.icon | tostring) else "󰍹" end)
+    | select((.icon | length) <= 4)
     | .id = (if ((.id // "") | length) > 0 then .id else "" end)
     | .theme = (if .theme == null or .theme == "" then null else (.theme | tostring) end)
     | select((.monitors | type) == "array" and (.monitors | length) > 0)
@@ -161,7 +163,7 @@ validate_scene() {
       ))
     | select(((.audio.name // "") | length) > 0)
     | {
-        id, name, theme,
+        id, name, icon, theme,
         monitors: [.monitors[] | {
           connector: (.connector | tostring),
           description: ((.description // .connector) | tostring),

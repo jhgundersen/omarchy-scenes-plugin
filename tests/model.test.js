@@ -32,6 +32,7 @@ assert.equal(selected[0].primary, true);
 const scene = {
   id: "desk",
   name: "Desk",
+  icon: "󰇄",
   theme: "Gruvbox",
   monitors: [{ connector: "DP-1", description: "Desk", primary: true, scale: "1.25" }],
   audio: { name: "sink.desk", label: "Desk speakers" }

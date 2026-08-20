@@ -21,7 +21,8 @@ The source repository is `/home/jonh/jonh.no/omarchy-scenes-plugin`. Treat it as
 - Preserve mouse and keyboard access. New controls must be focusable and usable with normal Tab, Enter, Space, and Escape behavior.
 - Use `Process.command` arrays rather than shell command strings when passing user-controlled values.
 - Keep the IPC target `jhgundersen.scenes` compatible with `open`, `close`, `toggle`, `next`, and `apply(sceneId)`.
-- Keep display modes at `preferred` unless a feature explicitly adds mode selection. Supported scene scales are `auto`, `1`, `1.25`, `1.6`, `2`, `3`, and `4`.
+- Keep display modes at `preferred` unless a feature explicitly adds mode selection. Supported scene scales are `auto`, `1`, `1.25`, `1.6`, `2`, `3`, and `4`; present them as Display-style scale pills rather than a dropdown.
+- Scene icons are curated Nerd Font glyphs stored with the scene. Keep legacy scenes valid by falling back to the display glyph when `icon` is absent.
 
 ## Safety Invariants
 

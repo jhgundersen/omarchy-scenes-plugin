@@ -57,6 +57,7 @@ omarchy-shell jhgundersen.scenes next
 Click the display icon in the bar and choose **Add scene**. A scene requires:
 
 - A unique name.
+- An icon selected from the built-in scene icon grid.
 - One or more connected displays.
 - Exactly one primary display.
 - A scale for every display.
@@ -64,7 +65,7 @@ Click the display icon in the bar and choose **Add scene**. A scene requires:
 - An audio output.
 - Optionally, an installed Omarchy theme.
 
-The primary display is placed at `0x0`. Secondary displays use Hyprland's automatic left, right, above, or below placement in the order shown in the editor. Displays outside the scene are disabled.
+The primary display is placed at `0x0`. Secondary displays use Hyprland's automatic left, right, above, or below placement in the order shown in the editor. Displays outside the scene are disabled. Display scales use the same equal-width preset selector as Omarchy's Display panel.
 
 Before applying anything, Scenes verifies that all saved displays and the optional theme are available. It applies a changed theme before the monitor layout because Omarchy's theme command reloads Hyprland. Workspaces already on selected displays remain there; workspaces on displays being disabled move to the primary display.
 

@@ -14,6 +14,20 @@ Panel {
 
   readonly property string backendPath: decodeURIComponent(String(Qt.resolvedUrl("scripts/omarchy-scenes")).replace(/^file:\/\//, ""))
   readonly property var scaleOptions: ["auto", "1", "1.25", "1.6", "2", "3", "4"]
+  readonly property var iconOptions: [
+    { value: "󰍹", label: "Display" },
+    { value: "󰌢", label: "Laptop" },
+    { value: "󰋜", label: "Home" },
+    { value: "󰇄", label: "Desk" },
+    { value: "󰉋", label: "Work" },
+    { value: "󰐩", label: "Presentation" },
+    { value: "󰊴", label: "Gaming" },
+    { value: "󰎆", label: "Music" },
+    { value: "󰋋", label: "Headphones" },
+    { value: "󰖙", label: "Day" },
+    { value: "󰖔", label: "Night" },
+    { value: "󰒓", label: "Setup" }
+  ]
   readonly property var directionOptions: [
     { value: "left", label: "Left" },
     { value: "right", label: "Right" },
@@ -37,6 +51,8 @@ Panel {
   property bool editing: false
   property string draftId: ""
   property string draftName: ""
+  property string draftIcon: "󰍹"
+  property bool iconPickerOpen: false
   property string draftTheme: ""
   property var draftMonitors: []
   property string draftAudioName: ""
@@ -74,6 +90,14 @@ Panel {
     return scene ? String(scene.name || "") : ""
   }
 
+  function sceneIcon(scene) {
+    return scene && scene.icon ? String(scene.icon) : "󰍹"
+  }
+
+  function activeSceneIcon() {
+    return sceneIcon(sceneById(activeSceneId))
+  }
+
   function monitorByConnector(connector) {
     return Model.monitorFor(monitors, connector)
   }
@@ -101,6 +125,8 @@ Panel {
     editing = true
     draftId = ""
     draftName = ""
+    draftIcon = "󰍹"
+    iconPickerOpen = false
     draftTheme = ""
     draftMonitors = []
     draftAudioName = currentSink || (sinks.length > 0 ? String(sinks[0].name) : "")
@@ -113,6 +139,8 @@ Panel {
     editing = true
     draftId = String(scene.id || "")
     draftName = String(scene.name || "")
+    draftIcon = root.sceneIcon(scene)
+    iconPickerOpen = false
     draftTheme = String(scene.theme || "")
     draftMonitors = JSON.parse(JSON.stringify(scene.monitors || []))
     draftAudioName = String(scene.audio && scene.audio.name || "")
@@ -122,6 +150,7 @@ Panel {
 
   function cancelEdit() {
     editing = false
+    iconPickerOpen = false
     pendingDeleteId = ""
     errorText = ""
   }
@@ -163,6 +192,7 @@ Panel {
     var payload = {
       id: draftId,
       name: name,
+      icon: draftIcon,
       theme: draftTheme === "" ? null : draftTheme,
       monitors: draftMonitors,
       audio: { name: draftAudioName, label: sinkLabel(draftAudioName) }
@@ -264,7 +294,7 @@ Panel {
     id: barButton
     anchors.fill: parent
     bar: root.bar
-    text: root.busy ? "󰦖" : "󰍹"
+    text: root.busy ? "󰦖" : (root.activeSceneId ? root.activeSceneIcon() : "󰍹")
     tooltipText: root.activeSceneId ? "Scene: " + root.activeSceneName() : "Scenes"
     onPressed: function(button) { root.toggle() }
     onWheelMoved: function(delta) { if (delta !== 0) root.applyNext() }
@@ -317,7 +347,7 @@ Panel {
             fontFamily: root.bar.fontFamily
             iconComponent: Component {
               Text {
-                text: "󰍹"
+                text: root.editing ? root.draftIcon : (root.activeSceneId ? root.activeSceneIcon() : "󰍹")
                 color: root.bar.foreground
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.display
@@ -351,7 +381,7 @@ Panel {
                 Button {
                   width: Math.max(0, parent.width - editButton.width - deleteButton.width - parent.spacing * 2)
                   text: String(modelData.name)
-                  iconText: root.activeSceneId === String(modelData.id) ? "●" : "○"
+                  iconText: root.sceneIcon(modelData)
                   leftAlign: true
                   bordered: true
                   active: root.activeSceneId === String(modelData.id)
@@ -413,15 +443,63 @@ Panel {
             width: parent.width
             spacing: Style.space(12)
 
-            PanelSectionHeader { text: "NAME"; foreground: root.bar.foreground; fontFamily: root.bar.fontFamily }
-            TextField {
-              id: nameField
+            PanelSectionHeader { text: "NAME & ICON"; foreground: root.bar.foreground; fontFamily: root.bar.fontFamily }
+            Row {
               width: parent.width
-              text: root.draftName
-              placeholderText: "Desk, Couch, Presentation…"
-              foreground: root.bar.foreground
-              font.family: root.bar.fontFamily
-              onTextChanged: root.draftName = text
+              spacing: Style.space(8)
+
+              TextField {
+                id: nameField
+                width: Math.max(0, parent.width - iconButton.width - parent.spacing)
+                text: root.draftName
+                placeholderText: "Desk, Couch, Presentation…"
+                foreground: root.bar.foreground
+                font.family: root.bar.fontFamily
+                onTextChanged: root.draftName = text
+              }
+
+              Button {
+                id: iconButton
+                width: implicitHeight
+                height: nameField.height
+                iconText: root.draftIcon
+                iconSize: Style.font.title
+                tooltipText: "Choose scene icon"
+                bordered: true
+                focusable: true
+                foreground: root.bar.foreground
+                fontFamily: root.bar.fontFamily
+                onClicked: root.iconPickerOpen = !root.iconPickerOpen
+              }
+            }
+
+            Grid {
+              id: iconGrid
+              visible: root.iconPickerOpen
+              width: parent.width
+              columns: 6
+              spacing: Style.spacing.xs
+              readonly property real cellWidth: (width - spacing * (columns - 1)) / columns
+
+              Repeater {
+                model: root.iconOptions
+                delegate: Button {
+                  required property var modelData
+                  width: iconGrid.cellWidth
+                  iconText: String(modelData.value)
+                  iconSize: Style.font.title
+                  tooltipText: String(modelData.label)
+                  active: root.draftIcon === String(modelData.value)
+                  bordered: true
+                  focusable: true
+                  foreground: root.bar.foreground
+                  fontFamily: root.bar.fontFamily
+                  onClicked: {
+                    root.draftIcon = String(modelData.value)
+                    root.iconPickerOpen = false
+                  }
+                }
+              }
             }
 
             PanelSeparator { foreground: root.bar.foreground }
@@ -460,8 +538,10 @@ Panel {
             Repeater {
               model: root.draftMonitors
               delegate: Column {
+                id: monitorEditor
                 required property var modelData
                 required property int index
+                readonly property var availableScaleValues: root.scaleOptionsFor(modelData.connector, modelData.scale)
                 width: contentColumn.width
                 spacing: Style.space(6)
 
@@ -507,28 +587,47 @@ Panel {
                   }
                 }
 
-                Row {
+                PanelSectionHeader {
+                  text: "SCALE"
+                  foreground: root.bar.foreground
+                  fontFamily: root.bar.fontFamily
+                }
+
+                Grid {
+                  id: scaleGrid
                   width: parent.width
-                  spacing: Style.space(8)
-                  Dropdown {
-                    width: (parent.width - parent.spacing) / 2
-                    label: "Scale"
-                    value: String(modelData.scale || "auto")
-                    options: root.scaleOptionsFor(modelData.connector, modelData.scale)
-                    foreground: root.bar.foreground
-                    fontFamily: root.bar.fontFamily
-                    onChanged: function(value) { root.setDraftMonitorValue(modelData.connector, "scale", value) }
+                  columns: monitorEditor.availableScaleValues.length
+                  spacing: Style.spacing.xs
+                  readonly property real cellWidth: columns > 0 ? (width - spacing * (columns - 1)) / columns : 0
+
+                  Repeater {
+                    model: monitorEditor.availableScaleValues
+                    delegate: Button {
+                      required property string modelData
+                      width: scaleGrid.cellWidth
+                      text: modelData === "auto" ? "Auto" : modelData + "x"
+                      fontSize: Style.font.caption
+                      horizontalPadding: Style.spacing.sm
+                      verticalPadding: Style.spacing.controlPaddingY
+                      active: String(monitorEditor.modelData.scale || "auto") === modelData
+                      bordered: true
+                      focusable: true
+                      foreground: root.bar.foreground
+                      fontFamily: root.bar.fontFamily
+                      onClicked: root.setDraftMonitorValue(monitorEditor.modelData.connector, "scale", modelData)
+                    }
                   }
-                  Dropdown {
-                    width: (parent.width - parent.spacing) / 2
-                    label: "Position"
-                    visible: modelData.primary !== true
-                    value: String(modelData.direction || "right")
-                    options: root.directionOptions
-                    foreground: root.bar.foreground
-                    fontFamily: root.bar.fontFamily
-                    onChanged: function(value) { root.setDraftMonitorValue(modelData.connector, "direction", value) }
-                  }
+                }
+
+                Dropdown {
+                  width: parent.width
+                  label: "Position"
+                  visible: modelData.primary !== true
+                  value: String(modelData.direction || "right")
+                  options: root.directionOptions
+                  foreground: root.bar.foreground
+                  fontFamily: root.bar.fontFamily
+                  onChanged: function(value) { root.setDraftMonitorValue(modelData.connector, "direction", value) }
                 }
               }
             }

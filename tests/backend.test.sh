@@ -79,6 +79,7 @@ scene='{"id":"","name":"Desk","theme":"Gruvbox","monitors":[{"connector":"DP-1",
 id=$($SCENES save "$scene")
 [[ -n $id ]]
 jq -e --arg id "$id" '.scenes[0].id == $id and .scenes[0].name == "Desk"' "$XDG_CONFIG_HOME/omarchy/scenes.json" >/dev/null
+jq -e '.scenes[0].icon == "󰍹"' "$XDG_CONFIG_HOME/omarchy/scenes.json" >/dev/null
 
 if $SCENES save "$scene" >/dev/null 2>&1; then
   echo "duplicate scene name was accepted" >&2
@@ -92,8 +93,9 @@ grep -F 'hyprctl keyword monitor HDMI-A-1,disable' "$LOG" >/dev/null
 grep -F 'audio-set 34 sink.desk' "$LOG" >/dev/null
 jq -e --arg id "$id" '.lastSceneId == $id' "$XDG_STATE_HOME/omarchy-scenes/state.json" >/dev/null
 
-multi='{"id":"multi","name":"Studio","theme":"Tokyo Night","monitors":[{"connector":"DP-1","description":"Desk","primary":true,"scale":"1.25"},{"connector":"HDMI-A-1","description":"TV","primary":false,"direction":"right","scale":"1"}],"audio":{"name":"sink.desk","label":"Desk speakers"}}'
+multi='{"id":"multi","name":"Studio","icon":"󰎆","theme":"Tokyo Night","monitors":[{"connector":"DP-1","description":"Desk","primary":true,"scale":"1.25"},{"connector":"HDMI-A-1","description":"TV","primary":false,"direction":"right","scale":"1"}],"audio":{"name":"sink.desk","label":"Desk speakers"}}'
 $SCENES save "$multi" >/dev/null
+jq -e '.scenes[] | select(.id == "multi") | .icon == "󰎆"' "$XDG_CONFIG_HOME/omarchy/scenes.json" >/dev/null
 : >"$LOG"
 $SCENES apply multi
 grep -F 'omarchy theme set Tokyo Night' "$LOG" >/dev/null
