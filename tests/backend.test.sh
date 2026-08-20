@@ -104,12 +104,31 @@ focus_line=$(grep -nF 'hyprctl eval hl.dispatch(hl.dsp.focus({ workspace = "1" }
 (( audio_line < focus_line ))
 grep -F 'audio-set 34 sink.desk' "$LOG" >/dev/null
 jq -e --arg id "$id" '.lastSceneId == $id' "$XDG_STATE_HOME/omarchy-scenes/state.json" >/dev/null
-grep -F 'hl.monitor({ output = "DP-1", mode = "preferred", position = "0x0", scale = 1.25, disabled = false })' "$XDG_STATE_HOME/omarchy-scenes/monitors.lua" >/dev/null
-grep -F 'hl.monitor({ output = "HDMI-A-1", disabled = true })' "$XDG_STATE_HOME/omarchy-scenes/monitors.lua" >/dev/null
-if command -v luac >/dev/null; then luac -p "$XDG_STATE_HOME/omarchy-scenes/monitors.lua"; fi
 : >"$LOG"
 $SCENES apply-default
 grep -F 'audio-set 34 sink.desk' "$LOG" >/dev/null
+: >"$LOG"
+$SCENES startup session-1
+jq -e '.sessionId == "session-1"' "$XDG_STATE_HOME/omarchy-scenes/state.json" >/dev/null
+[[ ! -s $LOG ]]
+: >"$LOG"
+$SCENES startup session-1
+[[ ! -s $LOG ]]
+$SCENES startup session-2
+jq -e '.sessionId == "session-2"' "$XDG_STATE_HOME/omarchy-scenes/state.json" >/dev/null
+grep -F 'audio-set 34 sink.desk' "$LOG" >/dev/null
+: >"$LOG"
+rm -f "$XDG_STATE_HOME/omarchy-scenes/state.json"
+$SCENES startup fresh-session
+jq -e --arg id "$id" '.sessionId == "fresh-session" and .lastSceneId == $id' "$XDG_STATE_HOME/omarchy-scenes/state.json" >/dev/null
+grep -F 'audio-set 34 sink.desk' "$LOG" >/dev/null
+: >"$LOG"
+$SCENES restore-current
+grep -F 'hyprctl eval hl.monitor' "$LOG" >/dev/null
+if grep -E 'audio-set|omarchy theme set' "$LOG" >/dev/null; then
+  echo "monitor-only restore changed audio or theme" >&2
+  exit 1
+fi
 
 multi='{"id":"multi","name":"Studio","icon":"󰎆","theme":"Tokyo Night","monitors":[{"connector":"DP-1","description":"Desk","primary":true,"scale":"1.25"},{"connector":"HDMI-A-1","description":"TV","primary":false,"direction":"right","scale":"1"}],"audio":{"name":"sink.desk","label":"Desk speakers"}}'
 $SCENES save "$multi" >/dev/null
@@ -164,5 +183,9 @@ grep -F 'audio-set 98 alsa_output.pci-0000_0b_00.1.hdmi-stereo-extra1' "$LOG" >/
 $SCENES delete "$id"
 jq -e --arg id "$id" 'all(.scenes[]; .id != $id)' "$XDG_CONFIG_HOME/omarchy/scenes.json" >/dev/null
 jq -e '.defaultSceneId == ""' "$XDG_CONFIG_HOME/omarchy/scenes.json" >/dev/null
+: >"$LOG"
+$SCENES startup session-without-default
+jq -e '.sessionId == "session-without-default"' "$XDG_STATE_HOME/omarchy-scenes/state.json" >/dev/null
+[[ ! -s $LOG ]]
 
 echo "backend tests passed"

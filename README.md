@@ -85,7 +85,9 @@ Runtime cycling state is kept in:
 ${XDG_STATE_HOME:-~/.local/state}/omarchy-scenes/state.json
 ```
 
-The active monitor layout is also generated there as `monitors.lua`. Load that file from `~/.config/hypr/monitors.lua` to keep the current scene through Hyprland reloads. A scene marked with the star is the login default; run `omarchy-scenes apply-default` from `~/.config/hypr/autostart.lua` to apply it once at boot.
+Scenes includes a background service that keeps the active monitor layout through Hyprland reloads. A scene marked with the star is applied once when a new Hyprland session starts. No Hyprland configuration changes are required.
+
+An optional keybinding can call `omarchy-shell jhgundersen.scenes next`. Scenes does not install keybindings or edit user configuration files.
 
 The plugin repository itself remains clean, so `omarchy plugin update` can fast-forward it normally.
 
