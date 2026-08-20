@@ -266,17 +266,10 @@ disable_monitor() {
   "$HYPRCTL_BIN" eval "hl.monitor({ output = $output_lua, disabled = true })"
 }
 
-move_workspace_to_monitor() {
-  local workspace_lua monitor_lua
+focus_workspace() {
+  local workspace_lua
   workspace_lua=$(lua_quote "$1")
-  monitor_lua=$(lua_quote "$2")
-  "$HYPRCTL_BIN" eval "hl.dispatch(hl.dsp.workspace.move({ workspace = $workspace_lua, monitor = $monitor_lua }))"
-}
-
-focus_monitor() {
-  local monitor_lua
-  monitor_lua=$(lua_quote "$1")
-  "$HYPRCTL_BIN" eval "hl.dispatch(hl.dsp.focus({ monitor = $monitor_lua }))"
+  "$HYPRCTL_BIN" eval "hl.dispatch(hl.dsp.focus({ workspace = $workspace_lua }))"
 }
 
 restore_monitors() {
@@ -302,11 +295,11 @@ restore_monitors() {
 }
 
 wait_for_scene_monitors() {
-  local resolved="$1" live
+  local resolved="$1" active
   for _ in {1..30}; do
-    live=$(monitor_inventory 2>/dev/null || printf '[]')
-    if jq -e --argjson live "$live" '
-      all(.monitors[]; .resolvedConnector as $name | any($live[]; .connector == $name and .enabled == true))
+    active=$("$HYPRCTL_BIN" monitors -j 2>/dev/null || printf '[]')
+    if jq -e --argjson active "$active" '
+      all(.monitors[]; .resolvedConnector as $name | any($active[]; .name == $name))
     ' <<<"$resolved" >/dev/null; then
       return 0
     fi
@@ -337,7 +330,7 @@ apply_audio() {
 }
 
 apply_scene() {
-  local scene="$1" inventory resolved missing theme current snapshot row connector position scale primary selected live workspace sink_name
+  local scene="$1" inventory resolved missing theme current snapshot row connector position scale primary selected live active_workspace sink_name
   inventory=$(monitor_inventory)
   resolved=$(resolve_monitors "$scene" "$inventory")
   missing=$(jq -r '[.monitors[] | select(.resolvedConnector == "") | .description] | join(", ")' <<<"$resolved")
@@ -357,6 +350,7 @@ apply_scene() {
   fi
 
   snapshot="$inventory"
+  active_workspace=$("$HYPRCTL_BIN" activeworkspace -j | jq -r '.name // ""')
   current=$(current_theme)
   if [[ -n $theme && $(slugify "$theme") != "$(slugify "$current")" ]]; then
     if ! "$OMARCHY_BIN" theme set "$theme" >/dev/null; then
@@ -377,6 +371,30 @@ apply_scene() {
   while IFS= read -r row; do
     connector=$(jq -r '.resolvedConnector' <<<"$row")
     scale=$(jq -r '.scale' <<<"$row")
+    if ! configure_monitor "$connector" "preferred" "auto-right" "$scale" >/dev/null; then
+      restore_monitors "$snapshot"
+      notify "Could not enable $connector; restored the previous layout"
+      return 1
+    fi
+  done < <(jq -c '.monitors[]' <<<"$resolved")
+
+  if ! wait_for_scene_monitors "$resolved"; then
+    restore_monitors "$snapshot"
+    notify "Displays did not become ready; restored the previous layout"
+    return 1
+  fi
+
+  selected=$(jq -c '[.monitors[].resolvedConnector]' <<<"$resolved")
+  live=$(monitor_inventory)
+  while IFS= read -r connector; do
+    if ! jq -e --arg name "$connector" 'index($name) != null' <<<"$selected" >/dev/null; then
+      disable_monitor "$connector" >/dev/null || true
+    fi
+  done < <(jq -r '.[] | select(.enabled) | .connector' <<<"$live")
+
+  while IFS= read -r row; do
+    connector=$(jq -r '.resolvedConnector' <<<"$row")
+    scale=$(jq -r '.scale' <<<"$row")
     if [[ $(jq -r '.primary' <<<"$row") == true ]]; then
       position="0x0"
       primary="$connector"
@@ -392,27 +410,10 @@ apply_scene() {
 
   if ! wait_for_scene_monitors "$resolved"; then
     restore_monitors "$snapshot"
-    notify "Displays did not become ready; restored the previous layout"
-    return 1
-  fi
-
-  selected=$(jq -c '[.monitors[].resolvedConnector]' <<<"$resolved")
-  while IFS= read -r workspace; do
-    move_workspace_to_monitor "$workspace" "$primary" >/dev/null
-  done < <("$HYPRCTL_BIN" workspaces -j | jq -r --argjson selected "$selected" '.[] | select(.id >= 0 and (.monitor as $m | ($selected | index($m)) == null)) | .name')
-
-  live=$(monitor_inventory)
-  while IFS= read -r connector; do
-    if ! jq -e --arg name "$connector" 'index($name) != null' <<<"$selected" >/dev/null; then
-      disable_monitor "$connector" >/dev/null || true
-    fi
-  done < <(jq -r '.[] | select(.enabled) | .connector' <<<"$live")
-  if ! wait_for_scene_monitors "$resolved"; then
-    restore_monitors "$snapshot"
     notify "Displays did not settle; restored the previous layout"
     return 1
   fi
-  focus_monitor "$primary" >/dev/null || true
+  [[ -z $active_workspace ]] || focus_workspace "$active_workspace" >/dev/null || true
 
   write_json_atomic "$STATE_FILE" "$(jq -cn --arg id "$(jq -r '.id' <<<"$scene")" '{lastSceneId:$id}')"
 
