@@ -107,6 +107,30 @@ function audioSinkMatches(savedName, currentName) {
   return saved === current || (saved !== "" && current !== "" && audioDeviceKey(saved) === audioDeviceKey(current))
 }
 
+function audioOptions(sinks, selectedName, selectedLabel, scenes) {
+  var devices = Array.isArray(sinks) ? sinks : []
+  var name = String(selectedName || "")
+  var options = []
+  var knownNames = []
+  for (var i = 0; i < devices.length; i++) {
+    var deviceName = String(devices[i].name || "")
+    options.push({ value: deviceName, label: String(devices[i].label || deviceName) })
+    knownNames.push(deviceName)
+  }
+  var savedScenes = Array.isArray(scenes) ? scenes : []
+  for (var j = 0; j < savedScenes.length; j++) {
+    var audio = savedScenes[j] && savedScenes[j].audio
+    var savedName = String(audio && audio.name || "")
+    if (savedName !== "" && knownNames.indexOf(savedName) < 0) {
+      options.push({ value: savedName, label: String(audio.label || savedName) + " (unavailable)" })
+      knownNames.push(savedName)
+    }
+  }
+  if (name !== "" && knownNames.indexOf(name) < 0)
+    options.unshift({ value: name, label: String(selectedLabel || name) + " (unavailable)" })
+  return options
+}
+
 function sceneMatches(scene, liveMonitors, currentSink, currentTheme) {
   if (!scene) return false
   var saved = Array.isArray(scene.monitors) ? scene.monitors : []
@@ -147,6 +171,7 @@ if (typeof module !== "undefined") {
     sceneSummary: sceneSummary,
     audioDeviceKey: audioDeviceKey,
     audioSinkMatches: audioSinkMatches,
+    audioOptions: audioOptions,
     sceneMatches: sceneMatches,
     activeSceneId: activeSceneId
   }

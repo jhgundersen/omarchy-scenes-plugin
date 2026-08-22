@@ -51,6 +51,32 @@ assert.equal(
   "PipeWire profiles on the same hardware output match"
 );
 assert.equal(Model.audioSinkMatches("sink.desk", "sink.other"), false);
+assert.deepEqual(
+  Model.audioOptions([{ name: "sink.desk", label: "Desk speakers" }], "sink.hdmi", "SAMSUNG"),
+  [
+    { value: "sink.hdmi", label: "SAMSUNG (unavailable)" },
+    { value: "sink.desk", label: "Desk speakers" }
+  ],
+  "saved labels identify outputs that are temporarily unavailable"
+);
+assert.deepEqual(
+  Model.audioOptions([{ name: "sink.desk", label: "Desk speakers" }], "sink.desk", "Old label"),
+  [{ value: "sink.desk", label: "Desk speakers" }],
+  "available outputs use their current label without a duplicate option"
+);
+assert.deepEqual(
+  Model.audioOptions(
+    [{ name: "sink.desk", label: "Desk speakers" }],
+    "sink.desk",
+    "Desk speakers",
+    [{ audio: { name: "sink.hdmi", label: "Living room HDMI" } }]
+  ),
+  [
+    { value: "sink.desk", label: "Desk speakers" },
+    { value: "sink.hdmi", label: "Living room HDMI (unavailable)" }
+  ],
+  "outputs remembered by other scenes can be selected in a new scene"
+);
 assert.match(Model.sceneSummary(scene), /1 display/);
 assert.equal(
   Model.sceneSummary({ ...scene, monitors: { 0: scene.monitors[0], length: 1 } }, "Friendly speakers"),

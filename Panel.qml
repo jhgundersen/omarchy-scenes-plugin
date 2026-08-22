@@ -59,6 +59,7 @@ Panel {
   property string draftTheme: ""
   property var draftMonitors: []
   property string draftAudioName: ""
+  property string draftAudioLabel: ""
   property string pendingDeleteId: ""
 
   function refresh() {
@@ -108,6 +109,10 @@ Panel {
 
   function sinkLabel(name, fallback) {
     for (var i = 0; i < sinks.length; i++) if (String(sinks[i].name) === String(name)) return String(sinks[i].label)
+    for (var j = 0; j < scenes.length; j++) {
+      var audio = scenes[j] && scenes[j].audio
+      if (audio && String(audio.name) === String(name)) return String(audio.label || name)
+    }
     return fallback || name
   }
 
@@ -124,11 +129,7 @@ Panel {
   }
 
   function audioOptions() {
-    var values = []
-    for (var i = 0; i < sinks.length; i++) values.push({ value: String(sinks[i].name), label: String(sinks[i].label) })
-    if (draftAudioName !== "" && sinkLabel(draftAudioName) === draftAudioName)
-      values.unshift({ value: draftAudioName, label: draftAudioName + " (unavailable)" })
-    return values
+    return Model.audioOptions(sinks, draftAudioName, draftAudioLabel, scenes)
   }
 
   function syncDraftSelectors() {
@@ -145,6 +146,7 @@ Panel {
     draftTheme = ""
     draftMonitors = []
     draftAudioName = currentSink || (sinks.length > 0 ? String(sinks[0].name) : "")
+    draftAudioLabel = sinkLabel(draftAudioName)
     pendingDeleteId = ""
     Qt.callLater(function() {
       if (!root.editing) return
@@ -163,6 +165,7 @@ Panel {
     draftTheme = String(scene.theme || "")
     draftMonitors = JSON.parse(JSON.stringify(scene.monitors || []))
     draftAudioName = String(scene.audio && scene.audio.name || "")
+    draftAudioLabel = String(scene.audio && scene.audio.label || draftAudioName)
     pendingDeleteId = ""
     Qt.callLater(function() {
       if (!root.editing) return
@@ -218,7 +221,7 @@ Panel {
       icon: draftIcon,
       theme: draftTheme === "" ? null : draftTheme,
       monitors: draftMonitors,
-      audio: { name: draftAudioName, label: sinkLabel(draftAudioName) }
+      audio: { name: draftAudioName, label: sinkLabel(draftAudioName, draftAudioLabel) }
     }
     mutationProc.command = [backendPath, "save", JSON.stringify(payload)]
     busy = true
@@ -709,7 +712,11 @@ Panel {
               options: root.audioOptions()
               foreground: root.bar.foreground
               fontFamily: root.bar.fontFamily
-              onChanged: function(value) { root.draftAudioName = value }
+              onChanged: function(value) {
+                if (String(value) !== root.draftAudioName)
+                  root.draftAudioLabel = root.sinkLabel(value)
+                root.draftAudioName = value
+              }
             }
 
             Row {
