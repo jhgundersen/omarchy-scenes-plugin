@@ -187,6 +187,8 @@ validate_scene() {
         | ((.connector // "") | length) > 0
         and ($monitor.scale == "auto" or (["1","1.25","1.6","2","3","4"] | index($monitor.scale | tostring)) != null)
         and ($monitor.primary == true or (["left","right","up","down"] | index($monitor.direction // "")) != null)
+        and (($monitor.mode // "preferred") | tostring | test("^(preferred|[0-9]+x[0-9]+@[0-9]+(\\.[0-9]+)?)$"))
+        and ((["off","fullscreen","always"] | index($monitor.vrr // "off")) != null)
       ))
     | select(((.audio.name // "") | length) > 0)
     | {
@@ -196,7 +198,10 @@ validate_scene() {
           description: ((.description // .connector) | tostring),
           primary: (.primary == true),
           scale: (.scale | tostring)
-        } + (if .primary == true then {} else {direction: .direction} end)],
+        }
+        + (if .primary == true then {} else {direction: .direction} end)
+        + (if .mode == null then {} else {mode: (.mode | tostring)} end)
+        + (if .vrr == null then {} else {vrr: .vrr} end)],
         audio: {
           name: (.audio.name | tostring),
           label: ((.audio.label // .audio.name) | tostring)
@@ -276,7 +281,14 @@ resolve_monitors() {
       | ([ $inventory[] | select(.connector == $saved.connector) ] | if length == 1 then .[0] else null end) as $byConnector
       | ([ $inventory[] | select(.description == $saved.description) ] | if length == 1 then .[0] else null end) as $byDescription
       | ($byConnector // $byDescription) as $match
-      | . + {resolvedConnector: ($match.connector // "")}
+      # A saved mode the display no longer offers falls back to preferred.
+      | (($saved.mode // "preferred") | tostring) as $mode
+      | ([($match.availableModes // [])[] | sub("Hz$"; "")] | index($mode)) as $offered
+      | . + {
+          resolvedConnector: ($match.connector // ""),
+          resolvedMode: (if $mode != "preferred" and $offered != null then $mode else "preferred" end),
+          resolvedVrr: ({"off": 0, "always": 1, "fullscreen": 2}[$saved.vrr // ""] // null)
+        }
     )
   ' <<<"$scene"
 }
@@ -286,12 +298,22 @@ lua_quote() {
 }
 
 configure_monitor() {
-  local connector="$1" mode="$2" position="$3" scale="$4"
-  local output_lua mode_lua position_lua
+  local connector="$1" mode="$2" position="$3" scale="$4" vrr="${5:-}"
+  local output_lua mode_lua position_lua vrr_lua=""
   output_lua=$(lua_quote "$connector")
   mode_lua=$(lua_quote "$mode")
   position_lua=$(lua_quote "$position")
-  "$HYPRCTL_BIN" eval "hl.monitor({ output = $output_lua, mode = $mode_lua, position = $position_lua, scale = $scale, disabled = false })"
+  [[ ! $vrr =~ ^[0-2]$ ]] || vrr_lua=", vrr = $vrr"
+  "$HYPRCTL_BIN" eval "hl.monitor({ output = $output_lua, mode = $mode_lua, position = $position_lua, scale = $scale$vrr_lua, disabled = false })"
+}
+
+configure_scene_monitor() {
+  local row="$1" position="$2" connector scale mode vrr
+  connector=$(jq -r '.resolvedConnector' <<<"$row")
+  scale=$(jq -r '.scale' <<<"$row")
+  mode=$(jq -r '.resolvedMode // "preferred"' <<<"$row")
+  vrr=$(jq -r '.resolvedVrr // ""' <<<"$row")
+  configure_monitor "$connector" "$mode" "$position" "$scale" "$vrr"
 }
 
 disable_monitor() {
@@ -366,29 +388,100 @@ wait_for_scene_monitors() {
   return 1
 }
 
-apply_audio() {
-  local sink_name="$1" sinks device_prefix sink_row sink_id resolved_name
-  device_prefix="${sink_name%.*}."
-  for _ in {1..30}; do
-    sinks=$(sink_inventory 2>/dev/null || printf '[]')
-    sink_row=$(jq -r --arg name "$sink_name" --arg prefix "$device_prefix" '
-      ([.[] | select(.name == $name)] | if length == 1 then .[0] else null end)
-      // ([.[] | select(.name | startswith($prefix))] | if length == 1 then .[0] else null end)
-      // {}
-      | [(.id // ""), (.name // "")] | @tsv
-    ' <<<"$sinks")
-    IFS=$'\t' read -r sink_id resolved_name <<<"$sink_row"
-    if [[ -n $sink_id ]]; then
-      "$AUDIO_SET_BIN" "$sink_id" "$resolved_name" >/dev/null
-      return 0
+card_inventory() {
+  "$PACTL_BIN" -f json list cards 2>/dev/null | jq -ce '[.[] | {
+    name: .name,
+    activeProfile: (.active_profile // ""),
+    profiles: [(.profiles // {}) | to_entries[] | {name: .key, available: (.value.available != false)}]
+  }]' 2>/dev/null || printf '[]\n'
+}
+
+# Prints active, available, unavailable, or missing for an ALSA card profile.
+card_profile_state() {
+  local card="$1" profile="$2"
+  card_inventory | jq -r --arg card "$card" --arg profile "$profile" '
+    ([.[] | select(.name == $card)] | first) as $match
+    | if $match == null then "missing"
+      elif $match.activeProfile == $profile then "active"
+      elif any($match.profiles[]; .name == $profile and .available) then "available"
+      elif any($match.profiles[]; .name == $profile) then "unavailable"
+      else "missing" end
+  '
+}
+
+find_sink() {
+  local sinks="$1" name="$2" prefix="${3:-}"
+  jq -r --arg name "$name" --arg prefix "$prefix" '
+    ([.[] | select(.name == $name)] | if length == 1 then .[0] else null end)
+    // (if $prefix == "" then null else ([.[] | select(.name | startswith($prefix))] | if length == 1 then .[0] else null end) end)
+    // {}
+    | [(.id // ""), (.name // "")] | @tsv
+  ' <<<"$sinks"
+}
+
+default_sink_settles() {
+  local wanted="$1" stable=0
+  for _ in {1..15}; do
+    if [[ $(current_sink) == "$wanted" ]]; then
+      (( stable += 1 ))
+      (( stable >= 3 )) && return 0
+    else
+      stable=0
     fi
     sleep 0.1
   done
   return 1
 }
 
+# An HDMI sink only exists once WirePlumber activates that port's card profile,
+# which can trail the display switch by seconds; until then the card may still
+# expose the previous port's sink. Wait for the exact saved sink, activating its
+# profile when the port is ready, and only fall back to another sink on the same
+# card when the saved profile does not exist or never appears. Then confirm the
+# default sticks, since WirePlumber may restore an older default as nodes churn.
+apply_audio() {
+  local sink_name="$1" wait="${OMARCHY_SCENES_AUDIO_WAIT:-80}"
+  local device_prefix card="" profile="" sinks sink_row sink_id="" resolved_name="" attempt
+  device_prefix="${sink_name%.*}."
+  if [[ $sink_name == alsa_output.*.* ]]; then
+    card="alsa_card.${sink_name#alsa_output.}"
+    card="${card%.*}"
+    profile="output:${sink_name##*.}"
+  fi
+
+  for (( attempt = 0; attempt < wait; attempt++ )); do
+    sinks=$(sink_inventory 2>/dev/null || printf '[]')
+    IFS=$'\t' read -r sink_id resolved_name <<<"$(find_sink "$sinks" "$sink_name")"
+    [[ -z $sink_id ]] || break
+    if [[ -n $card ]]; then
+      case $(card_profile_state "$card" "$profile") in
+        available) "$PACTL_BIN" set-card-profile "$card" "$profile" >/dev/null 2>&1 || true ;;
+        missing)
+          IFS=$'\t' read -r sink_id resolved_name <<<"$(find_sink "$sinks" "$sink_name" "$device_prefix")"
+          [[ -z $sink_id ]] || break
+          ;;
+      esac
+    fi
+    sleep 0.1
+  done
+  if [[ -z $sink_id ]]; then
+    sinks=$(sink_inventory 2>/dev/null || printf '[]')
+    IFS=$'\t' read -r sink_id resolved_name <<<"$(find_sink "$sinks" "$sink_name" "$device_prefix")"
+    [[ -n $sink_id ]] || return 1
+  fi
+
+  for _ in 1 2 3; do
+    "$AUDIO_SET_BIN" "$sink_id" "$resolved_name" >/dev/null
+    default_sink_settles "$resolved_name" && return 0
+    sinks=$(sink_inventory 2>/dev/null || printf '[]')
+    IFS=$'\t' read -r sink_id _ <<<"$(find_sink "$sinks" "$resolved_name")"
+    [[ -n $sink_id ]] || return 1
+  done
+  return 1
+}
+
 apply_scene() {
-  local scene="$1" layout_only="${2:-false}" inventory resolved missing theme current snapshot row connector position scale primary selected live active_workspace sink_name
+  local scene="$1" layout_only="${2:-false}" inventory resolved missing theme current snapshot row connector position primary selected live active_workspace sink_name
   inventory=$(monitor_inventory)
   resolved=$(resolve_monitors "$scene" "$inventory")
   missing=$(jq -r '[.monitors[] | select(.resolvedConnector == "") | .description] | join(", ")' <<<"$resolved")
@@ -413,8 +506,7 @@ apply_scene() {
 
   while IFS= read -r row; do
     connector=$(jq -r '.resolvedConnector' <<<"$row")
-    scale=$(jq -r '.scale' <<<"$row")
-    if ! configure_monitor "$connector" "preferred" "auto-right" "$scale" >/dev/null; then
+    if ! configure_scene_monitor "$row" "auto-right" >/dev/null; then
       restore_monitors "$snapshot"
       notify "Could not enable $connector; restored the previous layout"
       return 1
@@ -440,14 +532,13 @@ apply_scene() {
 
   while IFS= read -r row; do
     connector=$(jq -r '.resolvedConnector' <<<"$row")
-    scale=$(jq -r '.scale' <<<"$row")
     if [[ $(jq -r '.primary' <<<"$row") == true ]]; then
       position="0x0"
       primary="$connector"
     else
       position="auto-$(jq -r '.direction' <<<"$row")"
     fi
-    if ! configure_monitor "$connector" "preferred" "$position" "$scale" >/dev/null; then
+    if ! configure_scene_monitor "$row" "$position" >/dev/null; then
       restore_monitors "$snapshot"
       notify "Could not enable $connector; restored the previous layout"
       return 1
@@ -495,8 +586,7 @@ apply_scene() {
     fi
     while IFS= read -r row; do
       connector=$(jq -r '.resolvedConnector' <<<"$row")
-      scale=$(jq -r '.scale' <<<"$row")
-      configure_monitor "$connector" "preferred" "auto-right" "$scale" >/dev/null || return 5
+      configure_scene_monitor "$row" "auto-right" >/dev/null || return 5
     done < <(jq -c '.monitors[]' <<<"$resolved")
     if ! wait_for_scene_monitors "$resolved"; then
       notify "Scene applied, but displays changed during the theme update"
@@ -513,13 +603,12 @@ apply_scene() {
     done < <(jq -r '.[] | select(.enabled) | .connector' <<<"$live")
     while IFS= read -r row; do
       connector=$(jq -r '.resolvedConnector' <<<"$row")
-      scale=$(jq -r '.scale' <<<"$row")
       if [[ $(jq -r '.primary' <<<"$row") == true ]]; then
         position="0x0"
       else
         position="auto-$(jq -r '.direction' <<<"$row")"
       fi
-      configure_monitor "$connector" "preferred" "$position" "$scale" >/dev/null || return 5
+      configure_scene_monitor "$row" "$position" >/dev/null || return 5
     done < <(jq -c '(.monitors[] | select(.primary == true)), (.monitors[] | select(.primary != true))' <<<"$resolved")
     if ! wait_for_scene_monitors "$resolved"; then
       notify "Scene applied, but displays did not settle after the theme update"

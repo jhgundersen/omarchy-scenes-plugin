@@ -86,4 +86,40 @@ assert.equal(
 assert.deepEqual(Model.availableScales(["auto", "1", "1.25", "1.6"], displays[0], "1.25"), ["auto", "1", "1.25", "1.6"]);
 assert.deepEqual(Model.preferredDimensions({ width: 0, height: 0, availableModes: ["3840x2160@120Hz"] }), { width: 3840, height: 2160 });
 
+const tv = {
+  connector: "HDMI-A-1",
+  availableModes: ["3840x2160@60.00Hz", "3840x2160@119.88Hz", "3840x2160@100.00Hz", "3840x2160@100.00Hz", "3840x2160@29.97Hz", "1920x1080@119.88Hz"]
+};
+assert.deepEqual(
+  Model.refreshOptions(tv, "preferred"),
+  [
+    { value: "preferred", label: "Auto" },
+    { value: "3840x2160@119.88", label: "119.88" },
+    { value: "3840x2160@100.00", label: "100" },
+    { value: "3840x2160@60.00", label: "60" }
+  ],
+  "refresh choices use the preferred resolution, deduplicated, fastest first, at least 50 Hz"
+);
+assert.deepEqual(
+  Model.refreshOptions(tv, "1920x1080@119.88").slice(-1),
+  [{ value: "1920x1080@119.88", label: "119.88" }],
+  "a saved mode outside the list stays selectable"
+);
+assert.deepEqual(Model.refreshOptions(null, undefined), [{ value: "preferred", label: "Auto" }]);
+
+const theater = {
+  id: "tv",
+  monitors: [{ connector: "HDMI-A-1", description: "TV", primary: true, scale: "2", mode: "3840x2160@119.88" }],
+  audio: { name: "sink.tv" }
+};
+assert.equal(
+  Model.sceneMatches(theater, [{ connector: "HDMI-A-1", enabled: true, scale: 2, refreshRate: 119.88 }], "sink.tv", ""),
+  true
+);
+assert.equal(
+  Model.sceneMatches(theater, [{ connector: "HDMI-A-1", enabled: true, scale: 2, refreshRate: 60 }], "sink.tv", ""),
+  false,
+  "a display running another refresh rate is not the saved scene"
+);
+
 console.log("model tests passed");

@@ -33,13 +33,19 @@ cat >"$MOCKS/pactl" <<'SH'
 set -euo pipefail
 printf 'pactl %s\n' "$*" >>"$MOCK_LOG"
 if [[ $* == "-f json list sinks" ]]; then
-  if [[ ${MOCK_SINKS+x} ]]; then
+  if [[ ${MOCK_SINKS_AFTER_PROFILE+x} && -f $MOCK_PROFILE_SET ]]; then
+    printf '%s\n' "$MOCK_SINKS_AFTER_PROFILE"
+  elif [[ ${MOCK_SINKS+x} ]]; then
     printf '%s\n' "$MOCK_SINKS"
   else
     printf '%s\n' '[{"index":34,"name":"sink.desk","description":"Built-in Audio Desk speakers Output","properties":{"node.nick":"Desk speakers Output"}}]'
   fi
+elif [[ $* == "-f json list cards" ]]; then
+  printf '%s\n' "${MOCK_CARDS:-[]}"
+elif [[ $1 == "set-card-profile" ]]; then
+  : >"$MOCK_PROFILE_SET"
 elif [[ $* == "get-default-sink" ]]; then
-  printf '%s\n' 'sink.desk'
+  cat "$MOCK_DEFAULT_SINK" 2>/dev/null || printf '%s\n' 'sink.desk'
 fi
 SH
 
@@ -53,9 +59,13 @@ case "$*" in
 esac
 SH
 
+# MOCK_AUDIO_IGNORE simulates WirePlumber reverting the first N default changes.
 cat >"$MOCKS/audio-set" <<'SH'
 #!/usr/bin/env bash
 printf 'audio-set %s\n' "$*" >>"$MOCK_LOG"
+calls=$(( $(cat "$MOCK_AUDIO_CALLS" 2>/dev/null || echo 0) + 1 ))
+printf '%s\n' "$calls" >"$MOCK_AUDIO_CALLS"
+(( calls <= ${MOCK_AUDIO_IGNORE:-0} )) || printf '%s\n' "$2" >"$MOCK_DEFAULT_SINK"
 SH
 
 cat >"$MOCKS/notify" <<'SH'
@@ -74,6 +84,10 @@ export OMARCHY_SCENES_AUDIO_SET="$MOCKS/audio-set"
 export OMARCHY_SCENES_NOTIFY="$MOCKS/notify"
 export MOCK_LOG="$LOG"
 export MOCK_MONITORS="$TMP/monitors.json"
+export MOCK_DEFAULT_SINK="$TMP/default-sink"
+export MOCK_AUDIO_CALLS="$TMP/audio-calls"
+export MOCK_PROFILE_SET="$TMP/profile-set"
+export OMARCHY_SCENES_AUDIO_WAIT=5
 
 SCENES="$ROOT/scripts/omarchy-scenes"
 
@@ -179,6 +193,54 @@ $SCENES save "$alias_scene" >/dev/null
 : >"$LOG"
 MOCK_SINKS='[{"index":98,"name":"alsa_output.pci-0000_0b_00.1.hdmi-stereo-extra1","description":"HDMI 2"}]' $SCENES apply alias
 grep -F 'audio-set 98 alsa_output.pci-0000_0b_00.1.hdmi-stereo-extra1' "$LOG" >/dev/null
+
+tv='{"id":"tv","name":"TV","theme":null,"monitors":[{"connector":"HDMI-A-1","description":"TV","primary":true,"scale":"1","mode":"1920x1080@120","vrr":"fullscreen"}],"audio":{"name":"sink.desk","label":"Desk speakers"}}'
+$SCENES save "$tv" >/dev/null
+jq -e '.scenes[] | select(.id == "tv") | .monitors[0].mode == "1920x1080@120" and .monitors[0].vrr == "fullscreen"' "$XDG_CONFIG_HOME/omarchy/scenes.json" >/dev/null
+: >"$LOG"
+$SCENES apply tv
+grep -F 'hyprctl eval hl.monitor({ output = "HDMI-A-1", mode = "1920x1080@120", position = "auto-right", scale = 1, vrr = 2, disabled = false })' "$LOG" >/dev/null
+grep -F 'hyprctl eval hl.monitor({ output = "HDMI-A-1", mode = "1920x1080@120", position = "0x0", scale = 1, vrr = 2, disabled = false })' "$LOG" >/dev/null
+if grep -F 'output = "HDMI-A-1", mode = "preferred"' "$LOG" >/dev/null; then
+  echo "scene mode was replaced by preferred" >&2
+  exit 1
+fi
+
+stale='{"id":"stale","name":"Stale","theme":null,"monitors":[{"connector":"HDMI-A-1","description":"TV","primary":true,"scale":"1","mode":"1920x1080@60","vrr":"off"}],"audio":{"name":"sink.desk","label":"Desk speakers"}}'
+$SCENES save "$stale" >/dev/null
+: >"$LOG"
+$SCENES apply stale
+grep -F 'hyprctl eval hl.monitor({ output = "HDMI-A-1", mode = "preferred", position = "0x0", scale = 1, vrr = 0, disabled = false })' "$LOG" >/dev/null
+
+if $SCENES save '{"id":"","name":"Bad VRR","theme":null,"monitors":[{"connector":"DP-1","description":"Desk","primary":true,"scale":"1","vrr":"sometimes"}],"audio":{"name":"sink.desk","label":"Desk speakers"}}' >/dev/null 2>&1; then
+  echo "invalid vrr value was accepted" >&2
+  exit 1
+fi
+
+# While the display switch is in flight the HDMI card still exposes the old
+# port's sink. The scene must activate the saved port's profile, not grab it.
+hdmi_scene='{"id":"hdmi","name":"HDMI","theme":null,"monitors":[{"connector":"DP-1","description":"Desk","primary":true,"scale":"auto"}],"audio":{"name":"alsa_output.pci-0000_0b_00.1.hdmi-stereo-extra1","label":"SAMSUNG"}}'
+$SCENES save "$hdmi_scene" >/dev/null
+: >"$LOG"
+rm -f "$MOCK_PROFILE_SET"
+MOCK_SINKS='[{"index":97,"name":"alsa_output.pci-0000_0b_00.1.hdmi-stereo","description":"HDMI 1"}]' \
+MOCK_SINKS_AFTER_PROFILE='[{"index":99,"name":"alsa_output.pci-0000_0b_00.1.hdmi-stereo-extra1","description":"HDMI 2"}]' \
+MOCK_CARDS='[{"name":"alsa_card.pci-0000_0b_00.1","active_profile":"output:hdmi-stereo","profiles":{"output:hdmi-stereo":{"available":false},"output:hdmi-stereo-extra1":{"available":true}}}]' \
+  $SCENES apply hdmi
+grep -F 'pactl set-card-profile alsa_card.pci-0000_0b_00.1 output:hdmi-stereo-extra1' "$LOG" >/dev/null
+grep -F 'audio-set 99 alsa_output.pci-0000_0b_00.1.hdmi-stereo-extra1' "$LOG" >/dev/null
+if grep -F 'audio-set 97' "$LOG" >/dev/null; then
+  echo "scene switched audio to the previous HDMI port" >&2
+  exit 1
+fi
+
+# WirePlumber restoring an older default must not leave the scene on it.
+printf '%s\n' sink.other >"$MOCK_DEFAULT_SINK"
+rm -f "$MOCK_AUDIO_CALLS"
+: >"$LOG"
+MOCK_AUDIO_IGNORE=1 $SCENES apply "$id"
+[[ $(grep -cF 'audio-set 34 sink.desk' "$LOG") -eq 2 ]]
+[[ $(cat "$MOCK_DEFAULT_SINK") == sink.desk ]]
 
 $SCENES delete "$id"
 jq -e --arg id "$id" 'all(.scenes[]; .id != $id)' "$XDG_CONFIG_HOME/omarchy/scenes.json" >/dev/null

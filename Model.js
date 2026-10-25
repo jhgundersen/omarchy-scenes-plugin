@@ -85,6 +85,41 @@ function availableScales(scales, device, current) {
   return result
 }
 
+function parseMode(mode) {
+  var match = String(mode || "").replace(/Hz$/, "").match(/^(\d+x\d+)@(\d+(?:\.\d+)?)$/)
+  return match ? { value: match[0], resolution: match[1], rate: Number(match[2]) } : null
+}
+
+function formatRate(rate) {
+  return String(Number(Number(rate).toFixed(2)))
+}
+
+// Refresh choices at the display's preferred resolution, fastest first. Rates
+// below 50 Hz are left out; a saved mode outside the list stays selectable.
+function refreshOptions(device, current) {
+  var modes = device && Array.isArray(device.availableModes) ? device.availableModes : []
+  var preferred = modes.length > 0 ? parseMode(modes[0]) : null
+  var rates = []
+  var seen = {}
+  for (var i = 0; preferred && i < modes.length; i++) {
+    var mode = parseMode(modes[i])
+    if (!mode || mode.resolution !== preferred.resolution || mode.rate < 50 || seen[mode.value]) continue
+    seen[mode.value] = true
+    rates.push(mode)
+  }
+  rates.sort(function(a, b) { return b.rate - a.rate })
+  var options = [{ value: "preferred", label: "Auto" }]
+  for (var j = 0; j < rates.length; j++) options.push({ value: rates[j].value, label: formatRate(rates[j].rate) })
+  var selected = String(current || "preferred")
+  var known = false
+  for (var k = 0; k < options.length; k++) if (options[k].value === selected) known = true
+  if (!known) {
+    var saved = parseMode(selected)
+    options.push({ value: selected, label: saved ? formatRate(saved.rate) : selected })
+  }
+  return options
+}
+
 function sceneSummary(scene, resolvedAudioLabel) {
   if (!scene) return ""
   var monitorCount = scene.monitors && typeof scene.monitors.length === "number" ? scene.monitors.length : 0
@@ -144,6 +179,8 @@ function sceneMatches(scene, liveMonitors, currentSink, currentTheme) {
     }
     if (!match) return false
     if (String(saved[i].scale) !== "auto" && Math.abs(Number(saved[i].scale) - Number(match.scale)) > 0.01) return false
+    var savedMode = parseMode(saved[i].mode)
+    if (savedMode && Math.abs(savedMode.rate - Number(match.refreshRate)) > 0.05) return false
   }
   if (!scene.audio || !audioSinkMatches(scene.audio.name, currentSink)) return false
   if (scene.theme && String(scene.theme).toLowerCase() !== String(currentTheme || "").toLowerCase()) return false
@@ -168,6 +205,8 @@ if (typeof module !== "undefined") {
     moveMonitor: moveMonitor,
     preferredDimensions: preferredDimensions,
     availableScales: availableScales,
+    parseMode: parseMode,
+    refreshOptions: refreshOptions,
     sceneSummary: sceneSummary,
     audioDeviceKey: audioDeviceKey,
     audioSinkMatches: audioSinkMatches,

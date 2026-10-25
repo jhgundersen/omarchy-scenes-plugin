@@ -29,6 +29,11 @@ Panel {
     { value: "󰖙", label: "Day" },
     { value: "󰖔", label: "Night" }
   ]
+  readonly property var vrrOptions: [
+    { value: "off", label: "Off" },
+    { value: "fullscreen", label: "Fullscreen" },
+    { value: "always", label: "Always" }
+  ]
   readonly property var directionOptions: [
     { value: "left", label: "Left" },
     { value: "right", label: "Right" },
@@ -199,6 +204,10 @@ Panel {
 
   function scaleOptionsFor(connector, current) {
     return Model.availableScales(scaleOptions, monitorByConnector(connector), current)
+  }
+
+  function refreshOptionsFor(connector, current) {
+    return Model.refreshOptions(monitorByConnector(connector), current)
   }
 
   function moveDraftMonitor(index, delta) {
@@ -612,6 +621,7 @@ Panel {
                 required property var modelData
                 required property int index
                 readonly property var availableScaleValues: root.scaleOptionsFor(modelData.connector, modelData.scale)
+                readonly property var availableRefreshOptions: root.refreshOptionsFor(modelData.connector, modelData.mode)
                 width: contentColumn.width
                 spacing: Style.space(6)
 
@@ -685,6 +695,71 @@ Panel {
                       foreground: root.bar.foreground
                       fontFamily: root.bar.fontFamily
                       onClicked: root.setDraftMonitorValue(monitorEditor.modelData.connector, "scale", modelData)
+                    }
+                  }
+                }
+
+                PanelSectionHeader {
+                  text: "REFRESH"
+                  foreground: root.bar.foreground
+                  fontFamily: root.bar.fontFamily
+                }
+
+                Grid {
+                  id: refreshGrid
+                  width: parent.width
+                  columns: monitorEditor.availableRefreshOptions.length
+                  spacing: Style.spacing.xs
+                  readonly property real cellWidth: columns > 0 ? (width - spacing * (columns - 1)) / columns : 0
+
+                  Repeater {
+                    model: monitorEditor.availableRefreshOptions
+                    delegate: Button {
+                      required property var modelData
+                      width: refreshGrid.cellWidth
+                      text: String(modelData.label)
+                      fontSize: Style.font.caption
+                      horizontalPadding: Style.spacing.sm
+                      verticalPadding: Style.spacing.controlPaddingY
+                      active: String(monitorEditor.modelData.mode || "preferred") === String(modelData.value)
+                      bordered: true
+                      focusable: true
+                      foreground: root.bar.foreground
+                      fontFamily: root.bar.fontFamily
+                      tooltipText: modelData.value === "preferred" ? "Display's preferred mode" : String(modelData.value)
+                      onClicked: root.setDraftMonitorValue(monitorEditor.modelData.connector, "mode", String(modelData.value))
+                    }
+                  }
+                }
+
+                PanelSectionHeader {
+                  text: "VRR"
+                  foreground: root.bar.foreground
+                  fontFamily: root.bar.fontFamily
+                }
+
+                Grid {
+                  id: vrrGrid
+                  width: parent.width
+                  columns: root.vrrOptions.length
+                  spacing: Style.spacing.xs
+                  readonly property real cellWidth: (width - spacing * (columns - 1)) / columns
+
+                  Repeater {
+                    model: root.vrrOptions
+                    delegate: Button {
+                      required property var modelData
+                      width: vrrGrid.cellWidth
+                      text: String(modelData.label)
+                      fontSize: Style.font.caption
+                      horizontalPadding: Style.spacing.sm
+                      verticalPadding: Style.spacing.controlPaddingY
+                      active: String(monitorEditor.modelData.vrr || "off") === String(modelData.value)
+                      bordered: true
+                      focusable: true
+                      foreground: root.bar.foreground
+                      fontFamily: root.bar.fontFamily
+                      onClicked: root.setDraftMonitorValue(monitorEditor.modelData.connector, "vrr", String(modelData.value))
                     }
                   }
                 }

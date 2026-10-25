@@ -61,15 +61,18 @@ Click the display icon in the bar and choose **Add scene**. A scene requires:
 - One or more connected displays.
 - Exactly one primary display.
 - A scale for every display.
+- Optionally, a refresh rate and a variable refresh rate (VRR) setting for each display.
 - A direction for each secondary display.
 - An audio output.
 - Optionally, an installed Omarchy theme.
 
 The primary display is placed at `0x0`. Secondary displays use Hyprland's automatic left, right, above, or below placement in the order shown in the editor. Displays outside the scene are disabled. Display scales use the same equal-width preset selector as Omarchy's Display panel.
 
+Refresh choices are the rates the display offers at its preferred resolution (50 Hz and up); **Auto** keeps the display's preferred mode. If a saved refresh rate is no longer offered, the display falls back to its preferred mode. VRR can be **Off**, **Fullscreen** (only while a fullscreen app runs, so the desktop stays at a fixed rate) or **Always**. Scenes saved before these settings existed keep the preferred mode and leave VRR unchanged.
+
 Before applying anything, Scenes verifies that all saved displays and the optional theme are available. It switches displays and audio first, stabilizes the active workspace, and applies the theme last. Workspaces already on selected displays remain there; workspaces on displays being disabled move to the primary display.
 
-Some HDMI audio outputs only appear after their display is enabled. Scenes waits briefly for the saved output. If it remains unavailable, the display and theme changes stay applied, the previous audio output remains selected, and a notification explains the partial result.
+Some HDMI audio outputs only appear after their display is enabled, once PipeWire switches the graphics card's audio profile to that port. Scenes waits for the exact saved output and activates its card profile as soon as the port is ready, instead of grabbing another port's output that is still present during the switch. It only falls back to another output on the same card when the saved profile no longer exists or never appears. After switching, Scenes checks that the default output stays selected and reapplies it if PipeWire restores an older default. If the output remains unavailable, the display and theme changes stay applied, the previous audio output remains selected, and a notification explains the partial result.
 
 ## Configuration
 
@@ -102,4 +105,4 @@ node tests/model.test.js
 tests/backend.test.sh
 ```
 
-V1 intentionally keeps each monitor at its preferred mode. Exact resolution and refresh-rate selection, rotation, and mirroring are not included yet.
+Each display keeps its preferred resolution; only the refresh rate at that resolution can be chosen. Exact resolution selection, rotation, and mirroring are not included yet.
